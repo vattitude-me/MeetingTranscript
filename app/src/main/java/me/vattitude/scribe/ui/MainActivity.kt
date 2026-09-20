@@ -42,7 +42,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) toggleRecording()
-        else Snackbar.make(b.root, "Scribe needs the microphone to record", Snackbar.LENGTH_LONG).show()
+        else Snackbar.make(b.root, "Recording needs access to the microphone", Snackbar.LENGTH_LONG).show()
     }
 
     private val notifPermission = registerForActivityResult(
@@ -136,7 +136,7 @@ class MainActivity : AppCompatActivity() {
                 b.emptyIcon.setImageResource(R.drawable.ic_waveform)
                 b.empty.text = "No meetings yet"
                 b.emptySub.text =
-                    "Tap Record, or add the Scribe widget to your home screen to start with one tap."
+                    "Tap Record, or add the widget to your home screen to start with one tap."
             } else {
                 b.emptyIcon.setImageResource(R.drawable.ic_search)
                 b.empty.text = "Nothing matches \u201c" + q + "\u201d"

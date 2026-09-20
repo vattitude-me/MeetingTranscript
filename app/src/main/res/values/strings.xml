@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">Scribe</string>
-    <string name="widget_label">Scribe</string>
+    <string name="app_name">Meeting Transcript</string>
+    <string name="widget_label">Meeting Transcript</string>
     <string name="widget_desc">Start or stop a meeting recording</string>
     <string name="start_recording">Record</string>
     <string name="stop_recording">Stop</string>
@@ -36,7 +36,7 @@
     <string name="export_backup">Export a backup</string>
     <string name="export_backup_sub">Every meeting and transcript as one file you keep.</string>
     <string name="import_backup">Restore a backup</string>
-    <string name="import_backup_sub">Adds the meetings from a Scribe backup. Nothing already here is replaced.</string>
+    <string name="import_backup_sub">Adds the meetings from a Meeting Transcript backup. Nothing already here is replaced.</string>
 
     <string name="delete_audio">Delete audio after transcribing</string>
     <string name="delete_audio_sub">Recommended. The transcript is kept; only the recording is removed, and only once it has been transcribed.</string>
