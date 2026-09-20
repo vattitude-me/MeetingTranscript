@@ -81,6 +81,15 @@ class DiarizeEngine private constructor(
      * from the transcript. So the floor stays where it does the good it can, and
      * the real answer is to ask the user: told the true count, the clusterer was
      * right on all four samples. See MeetingDetailActivity.promptSpeakerCount.
+     *
+     * An exhaustive grid over thresholds 0.6..0.9 and floors 0..25% is worth
+     * knowing about before anyone re-tunes this: **no pair scores better than
+     * three of the four samples.** 0.9 beats every other threshold. Floors of
+     * 12-20% do score 3/4 where 10% scores 2/4, but they win only by keeping
+     * the three-speaker sample's quiet participant at exactly 12%, on the right
+     * side of a >= comparison. That is one sample landing on the boundary, not
+     * a margin, and the thing it would trade away is a real person's presence
+     * in a transcript. 10% keeps the safer error.
      */
     private fun dropFragments(turns: List<Turn>): List<Turn> {
         if (turns.isEmpty()) return turns
