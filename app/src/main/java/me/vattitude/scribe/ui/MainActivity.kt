@@ -20,6 +20,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.vattitude.scribe.R
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.asr.TranscribeWorker
 import me.vattitude.scribe.capture.RecorderService
@@ -122,15 +123,23 @@ class MainActivity : AppCompatActivity() {
         renderRecordButton()
         lifecycleScope.launch {
             val q = query
-            val list = withContext(Dispatchers.IO) {
-                if (q.isBlank()) repo.meetings() else repo.search(q)
+            val (list, snips) = withContext(Dispatchers.IO) {
+                val l = if (q.isBlank()) repo.meetings() else repo.search(q)
+                l to repo.snippets()
             }
-            adapter.submit(list)
-            b.empty.text =
-                if (q.isBlank())
-                    "No meetings yet.\n\nTap Start recording, or add the Scribe widget to your home screen to start with one tap."
-                else "Nothing matches \u201c" + q + "\u201d"
-            b.empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            adapter.submit(list, snips)
+
+            if (q.isBlank()) {
+                b.emptyIcon.setImageResource(R.drawable.ic_waveform)
+                b.empty.text = "No meetings yet"
+                b.emptySub.text =
+                    "Tap Record, or add the Scribe widget to your home screen to start with one tap."
+            } else {
+                b.emptyIcon.setImageResource(R.drawable.ic_search)
+                b.empty.text = "Nothing matches \u201c" + q + "\u201d"
+                b.emptySub.text = "Titles and transcript text only."
+            }
+            b.emptyBox.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
             // The box is only useful once there is something to search, and it
             // otherwise just crowds an empty first-run screen.
             b.searchBox.visibility =
@@ -173,16 +182,14 @@ class MainActivity : AppCompatActivity() {
         // While a meeting is running this button is a way back to it, not a
         // second stop control — stopping lives on the recording screen, the
         // notification and the widget, which is already more than enough places.
-        b.record.text = if (recording) "Back to recording" else "Start recording"
-        b.recordHint.text = when {
-            rec != null -> "Recording \u00b7 " + RecorderService.formatElapsed(rec.elapsedMs)
-            else -> "Put the phone next to your laptop speaker."
-        }
+        b.record.text = if (recording) "Back" else getString(R.string.start_recording)
+        b.record.setIconResource(if (recording) R.drawable.ic_waveform else R.drawable.ic_mic)
     }
 
     private fun renderModelCard() {
         val missing = ModelManager.missing(this)
         b.modelCard.visibility = if (missing.isEmpty()) View.GONE else View.VISIBLE
+        if (missing.isEmpty()) b.modelReassure.visibility = View.GONE
         if (missing.isNotEmpty() && !downloading) {
             val mb = missing.sumOf { it.approxBytes } / 1_000_000
             // Lead with what the app does and with the fact that you are not
@@ -190,14 +197,13 @@ class MainActivity : AppCompatActivity() {
             // works" — is wrong: recording works right now, and the audio is
             // kept, so a download started later loses nothing.
             b.modelStatus.text =
-                "Scribe records meetings and transcribes them on this phone. " +
-                    "Nothing is uploaded.\n\n" +
-                    "Speech models: ~$mb MB, once, Wi-Fi recommended. " +
-                    "You can start recording now — anything you record is transcribed " +
-                    "as soon as they finish."
+                "$mb MB, once. After this, transcription runs entirely on this " +
+                    "device \u2014 no account, no upload, works in aeroplane mode."
             b.modelAction.isEnabled = true
-            b.modelAction.text = "Download models"
+            b.modelAction.text = getString(R.string.model_download)
             b.modelProgress.visibility = View.GONE
+            b.modelPct.visibility = View.GONE
+            b.modelReassure.visibility = View.VISIBLE
         }
     }
 
@@ -205,7 +211,7 @@ class MainActivity : AppCompatActivity() {
         if (downloading) return
         downloading = true
         b.modelAction.isEnabled = false
-        b.modelAction.text = "Downloading…"
+        b.modelAction.text = "Downloading\u2026"
         b.modelProgress.visibility = View.VISIBLE
         b.modelProgress.isIndeterminate = true
 
@@ -226,8 +232,10 @@ class MainActivity : AppCompatActivity() {
                                 .toInt().coerceIn(0, 100)
                             runOnUiThread {
                                 b.modelProgress.isIndeterminate = false
-                                b.modelProgress.progress = pct
-                                b.modelStatus.text = "Downloading $label… $pct%"
+                                b.modelProgress.setProgressCompat(pct, true)
+                                b.modelPct.visibility = View.VISIBLE
+                                b.modelPct.text = "$pct%"
+                                b.modelStatus.text = "Downloading the $label"
                             }
                         }
                         alreadyDone += model.approxBytes

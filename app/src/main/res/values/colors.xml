@@ -1,8 +1,62 @@
 <resources>
-    <color name="scribe_primary">#2E6B5E</color>
-    <color name="scribe_on_primary">#FFFFFF</color>
-    <color name="scribe_primary_container">#B6EBD9</color>
-    <color name="scribe_on_primary_container">#002017</color>
-    <color name="widget_bg">#1B2620</color>
-    <color name="rec_red">#D3453B</color>
+    <!--
+      Palette from the Claude Design handoff (docs/design/scribe-material-3-dark-theme).
+      Two accents carry the whole app, and the split is load-bearing:
+        cyan    = interactive. Buttons, links, progress, timestamps.
+        magenta = the microphone is live. Nothing else, ever, so a glance at
+                  any surface — list row, notification, widget — answers
+                  "is it recording?" without reading a word.
+    -->
+
+    <!-- Surfaces, darkest to lightest -->
+    <color name="s_bg">#0F1417</color>
+    <color name="s_surface">#151A1D</color>
+    <color name="s_surface_1">#171C1F</color>
+    <color name="s_surface_2">#1B2124</color>
+    <color name="s_surface_3">#232A2D</color>
+    <color name="s_outline">#3F484C</color>
+    <color name="s_divider">#2B3336</color>
+    <color name="s_hover">#262C2F</color>
+
+    <!-- Text -->
+    <color name="s_text">#E0E4E6</color>
+    <color name="s_text_dim">#BFC8CC</color>
+    <color name="s_text_muted">#8D9699</color>
+    <color name="s_text_faint">#6D7679</color>
+
+    <!-- Cyan: interactive -->
+    <color name="s_cyan">#6FD3F2</color>
+    <color name="s_cyan_bright">#8BDCF5</color>
+    <color name="s_on_cyan">#003543</color>
+    <color name="s_cyan_container">#004E60</color>
+    <color name="s_on_cyan_container">#BBE9FB</color>
+    <color name="s_cyan_surface">#0C2A33</color>
+
+    <!-- Magenta: mic live -->
+    <color name="s_mic">#FFB1C8</color>
+    <color name="s_mic_bright">#FFC6D7</color>
+    <color name="s_on_mic">#5C1136</color>
+    <color name="s_mic_container">#7B2B4E</color>
+    <color name="s_on_mic_container">#FFD9E3</color>
+
+    <!-- Amber: silence warning -->
+    <color name="s_warn">#FFB877</color>
+    <color name="s_on_warn">#452A00</color>
+    <color name="s_warn_container">#3B2A12</color>
+    <color name="s_on_warn_container">#FFDCBD</color>
+    <color name="s_warn_body">#DCC0A3</color>
+    <color name="s_warn_outline">#6B5533</color>
+
+    <!-- Red: failure -->
+    <color name="s_error">#FFB4AB</color>
+    <color name="s_on_error">#690005</color>
+    <color name="s_error_container">#93000A</color>
+    <color name="s_on_error_container">#FFDAD6</color>
+    <color name="s_error_outline">#7A4440</color>
+
+    <!-- Kept: the widget reads these by name -->
+    <color name="widget_bg">#1B2124</color>
+    <color name="rec_red">#FFB1C8</color>
+    <color name="scribe_primary">#6FD3F2</color>
+    <color name="scribe_on_primary">#003543</color>
 </resources>

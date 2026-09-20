@@ -201,6 +201,20 @@ class Repo(context: Context) {
         ).use { c -> buildList { while (c.moveToNext()) add(c.toMeeting()) } }
     }
 
+    /**
+     * First line of each finished transcript, for the list. One query rather than
+     * one per row: the list is rebuilt on every worker transition, and a query
+     * per visible row turns a five-row list into six round trips.
+     */
+    fun snippets(): Map<Long, String> =
+        db.readableDatabase.rawQuery(
+            """SELECT meeting_id, text FROM lines
+               WHERE idx = (SELECT MIN(idx) FROM lines l2 WHERE l2.meeting_id = lines.meeting_id)""".trimIndent(),
+            null
+        ).use { c ->
+            buildMap { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
+        }
+
     fun meetings(): List<Meeting> =
         db.readableDatabase.rawQuery("SELECT * FROM meetings ORDER BY started_at DESC", null)
             .use { c -> buildList { while (c.moveToNext()) add(c.toMeeting()) } }

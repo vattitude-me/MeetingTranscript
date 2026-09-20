@@ -18,6 +18,9 @@ import me.vattitude.scribe.store.Line
 import me.vattitude.scribe.store.Meeting
 import me.vattitude.scribe.store.MeetingState
 import me.vattitude.scribe.store.Repo
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MeetingDetailActivity : AppCompatActivity() {
 
@@ -38,6 +41,7 @@ class MeetingDetailActivity : AppCompatActivity() {
         adapter = LineAdapter()
         b.lines.layoutManager = LinearLayoutManager(this)
         b.lines.adapter = adapter
+        b.rename.setOnClickListener { meeting?.let { m -> promptRename(m) } }
     }
 
     override fun onResume() {
@@ -48,15 +52,23 @@ class MeetingDetailActivity : AppCompatActivity() {
             if (m == null) { finish(); return@launch }
             meeting = m
             lines = ls
-            title = m.title
+            // The headline carries the name; the toolbar stays bare so the title
+            // is not printed twice at two sizes.
+            title = ""
+            b.headline.text = m.title.ifBlank { getString(R.string.untitled) }
             adapter.submit(ls)
-            b.status.text = when (m.state) {
-                MeetingState.DONE -> "${ls.size} lines · ${m.asrModelId ?: ""}"
-                MeetingState.TRANSCRIBING -> "Transcribing ${m.segmentsDone}/${m.segmentCount}…"
-                MeetingState.RECORDED -> m.error ?: "Waiting to transcribe"
-                MeetingState.RECORDING -> "Recording in progress"
-                else -> m.error ?: "Transcription failed"
+
+            val meta = SimpleDateFormat("EEE d MMM · HH:mm", Locale.getDefault())
+                .format(Date(m.startedAt))
+            val dur = if (m.durationMs > 0) " · " + Exporters.timestamp(m.durationMs) else ""
+            val state = when (m.state) {
+                MeetingState.DONE -> " · ${ls.size} lines"
+                MeetingState.TRANSCRIBING -> " · transcribing ${m.segmentsDone}/${m.segmentCount}"
+                MeetingState.RECORDED -> " · " + (m.error ?: "queued")
+                MeetingState.RECORDING -> " · recording"
+                else -> " · " + (m.error ?: "failed")
             }
+            b.status.text = meta + dur + state
             b.empty.visibility = if (ls.isEmpty()) View.VISIBLE else View.GONE
         }
     }
@@ -92,6 +104,7 @@ class MeetingDetailActivity : AppCompatActivity() {
     private fun promptRename(m: Meeting) {
         val input = android.widget.EditText(this).apply {
             setText(m.title)
+            hint = getString(R.string.untitled)
             setSelection(text.length)
             setSingleLine()
         }
@@ -109,7 +122,7 @@ class MeetingDetailActivity : AppCompatActivity() {
                 if (name.isEmpty()) return@setPositiveButton
                 lifecycleScope.launch {
                     withContext(Dispatchers.IO) { repo.rename(m.id, name) }
-                    title = name
+                    b.headline.text = name
                     meeting = m.copy(title = name)
                 }
             }

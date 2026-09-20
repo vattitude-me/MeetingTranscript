@@ -1,108 +1,252 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
+    android:background="@color/s_bg"
     android:fitsSystemWindows="true">
 
-    <com.google.android.material.appbar.MaterialToolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:title="@string/app_name" />
-
     <LinearLayout
-        android:id="@+id/modelCard"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="#14000000"
-        android:padding="16dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp">
+        android:layout_height="match_parent"
+        android:orientation="vertical">
 
         <TextView
-            android:id="@+id/modelStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textSize="14sp" />
-
-        <ProgressBar
-            android:id="@+id/modelProgress"
-            style="?android:attr/progressBarStyleHorizontal"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:max="100"
-            android:visibility="gone" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/modelAction"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="end"
-            android:layout_marginTop="4dp"
-            android:text="Download model" />
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingTop="10dp"
+            android:paddingBottom="2dp"
+            android:text="@string/app_name"
+            android:textColor="@color/s_text"
+            android:textSize="23sp"
+            android:fontFamily="@font/serif_semibold" />
+
+        <!-- Pill search. Hidden until there is something to search. -->
+        <FrameLayout
+            android:id="@+id/searchBox"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="12dp"
+            android:background="@drawable/surface_search">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginStart="16dp"
+                android:src="@drawable/ic_search"
+                android:contentDescription="@null"
+                app:tint="@color/s_text_dim" />
+
+            <EditText
+                android:id="@+id/search"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_marginStart="48dp"
+                android:layout_marginEnd="16dp"
+                android:background="@null"
+                android:hint="@string/search_hint"
+                android:textColorHint="@color/s_text_muted"
+                android:textColor="@color/s_text"
+                android:textSize="16sp"
+                android:fontFamily="@font/serif_regular"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:maxLines="1" />
+        </FrameLayout>
+
+        <!-- First run / model download -->
+        <LinearLayout
+            android:id="@+id/modelCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/surface_card"
+            android:padding="18dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:src="@drawable/ic_download"
+                android:contentDescription="@null"
+                app:tint="@color/s_cyan" />
+
+            <TextView
+                android:id="@+id/modelTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="@string/model_title"
+                android:textColor="@color/s_text"
+                android:textSize="22sp"
+                android:fontFamily="@font/serif_semibold" />
+
+            <TextView
+                android:id="@+id/modelStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:textColor="@color/s_text_dim"
+                android:textSize="15sp"
+                android:lineSpacingMultiplier="1.35"
+                android:fontFamily="@font/serif_regular" />
+
+            <TextView
+                android:id="@+id/modelPct"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:textColor="@color/s_text"
+                android:textSize="24sp"
+                android:fontFamily="@font/serif_semibold"
+                android:visibility="gone" />
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/modelProgress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:max="100"
+                app:trackThickness="8dp"
+                app:trackCornerRadius="4dp"
+                app:trackColor="@color/s_divider"
+                app:indicatorColor="@color/s_cyan"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/modelAction"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="16dp"
+                android:text="@string/model_download"
+                android:textSize="15sp"
+                app:cornerRadius="16dp" />
+        </LinearLayout>
+
+        <!-- Recording works before the models land: say so where it is read. -->
+        <LinearLayout
+            android:id="@+id/modelReassure"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/surface_cyan"
+            android:padding="16dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_mic"
+                android:contentDescription="@null"
+                app:tint="@color/s_cyan" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginStart="13dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/rec_already_works"
+                    android:textColor="@color/s_on_cyan_container"
+                    android:textSize="15sp"
+                    android:fontFamily="@font/serif_semibold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:text="@string/rec_already_works_body"
+                    android:textColor="#9FB6BD"
+                    android:textSize="13sp"
+                    android:lineSpacingMultiplier="1.35"
+                    android:fontFamily="@font/serif_regular" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/meetings"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingBottom="108dp" />
+
+            <LinearLayout
+                android:id="@+id/emptyBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:padding="28dp">
+
+                <ImageView
+                    android:id="@+id/emptyIcon"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_waveform"
+                    android:contentDescription="@null"
+                    app:tint="@color/s_outline" />
+
+                <TextView
+                    android:id="@+id/empty"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="14dp"
+                    android:gravity="center"
+                    android:textColor="@color/s_text"
+                    android:textSize="18sp"
+                    android:fontFamily="@font/serif_semibold" />
+
+                <TextView
+                    android:id="@+id/emptySub"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:gravity="center"
+                    android:textColor="@color/s_text_muted"
+                    android:textSize="14sp"
+                    android:lineSpacingMultiplier="1.35"
+                    android:fontFamily="@font/serif_regular" />
+            </LinearLayout>
+        </FrameLayout>
     </LinearLayout>
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/record"
-        android:layout_width="match_parent"
-        android:layout_height="64dp"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:textSize="16sp"
-        android:text="Start recording" />
-
-    <TextView
-        android:id="@+id/recordHint"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:textSize="13sp"
-        android:alpha="0.7" />
-
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/searchBox"
-        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="8dp"
-        android:hint="Search transcripts">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/search"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="text"
-            android:imeOptions="actionSearch"
-            android:maxLines="1" />
-    </com.google.android.material.textfield.TextInputLayout>
-
-    <FrameLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/meetings"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingBottom="16dp" />
-
-        <TextView
-            android:id="@+id/empty"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:padding="32dp"
-            android:gravity="center"
-            android:alpha="0.6"
-            android:text="No meetings yet.\n\nTap Start recording, or add the Scribe widget to your home screen to start with one tap." />
-    </FrameLayout>
-</LinearLayout>
+        android:layout_width="wrap_content"
+        android:layout_height="56dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="28dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:text="@string/start_recording"
+        android:textSize="15sp"
+        app:icon="@drawable/ic_mic"
+        app:iconSize="22dp"
+        app:iconGravity="textStart"
+        app:cornerRadius="16dp"
+        app:elevation="6dp" />
+</FrameLayout>

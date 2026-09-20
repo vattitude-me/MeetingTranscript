@@ -6,4 +6,24 @@
     <string name="stop_recording">Stop</string>
     <string name="channel_recording">Recording</string>
     <string name="channel_transcribe">Transcription</string>
+
+    <string name="search_hint">Search titles and transcripts</string>
+    <string name="recording">Recording</string>
+    <string name="close">Close</string>
+    <string name="rename">Rename</string>
+    <string name="mic_live">MIC LIVE · ON DEVICE</string>
+    <string name="builtin_mic">Built-in mic</string>
+    <string name="no_transcript">No transcript yet.</string>
+    <string name="untitled">Untitled meeting</string>
+
+    <string name="lock_it">Lock the screen — it keeps running</string>
+    <string name="lock_it_body">A foreground service with an ongoing notification. Stop it from the notification or the widget without unlocking.</string>
+
+    <string name="silent_title">Nothing above the noise floor for 45 seconds</string>
+    <string name="silent_body">Most often something is over the mic, or another app has grabbed the audio input. The file is still being written either way.</string>
+
+    <string name="model_title">Downloading the speech models</string>
+    <string name="model_download">Download models</string>
+    <string name="rec_already_works">Recording already works</string>
+    <string name="rec_already_works_body">Audio captured now is saved and queued; it transcribes automatically the moment the download lands. You do not have to wait here.</string>
 </resources>

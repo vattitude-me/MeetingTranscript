@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/broadsheet-193f9f3f-7483-48d0-9912-2fc02b19e8db/styles.css">
+<script src="_ds/broadsheet-193f9f3f-7483-48d0-9912-2fc02b19e8db/_ds_bundle.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/duotone/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400;1,8..60,600&display=swap">
+<style>
+body{margin:0;background:#f3f2f2}
+a{color:#0074a3}a:hover{color:#005e85}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes ring{0%{transform:scale(1);opacity:.5}100%{transform:scale(2.6);opacity:0}}
+</style>
+</helmet>
+
+<section style="padding:44px 48px 8px;max-width:1180px">
+<div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px">
+<span style="font:600 10px/1 ui-monospace,Menlo,monospace;padding:4px 7px;background:#201e1d;color:#fff;border-radius:2px;letter-spacing:.06em">SCRIBE</span>
+<span style="font:400 12px/1 'Source Serif 4',serif;color:#605d5d">Android · M3 dark, Broadsheet-forward · Views + ViewBinding</span>
+</div>
+<h1 style="font:600 40px/1.1 'Source Serif 4',serif;color:#201e1d;margin:0 0 14px;max-width:16ch;text-wrap:pretty">On-device meeting recorder</h1>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:26px;max-width:1000px;margin-bottom:10px">
+<div><div style="font:600 11px/1 ui-monospace,monospace;color:#0074a3;letter-spacing:.08em;margin-bottom:7px">TITLES · four-part fix</div><p style="font:400 14px/1.5 'Source Serif 4',serif;color:#444141;margin:0;text-wrap:pretty">Date and time drop to a metadata line. On stop you get one optional prompt; skip it and the row reads <em>Untitled meeting</em> with an inline rename, until the first transcribed sentence drafts a real title you can overwrite.</p></div>
+<div><div style="font:600 11px/1 ui-monospace,monospace;color:#0074a3;letter-spacing:.08em;margin-bottom:7px">TYPE · serif as the chrome</div><p style="font:400 14px/1.5 'Source Serif 4',serif;color:#444141;margin:0;text-wrap:pretty">Source Serif 4 at every size, including labels and buttons — set as <code style="font:400 12px ui-monospace,monospace">fontFamily</code> on the M3 text appearances. The M3 type <em>scale</em>, spacing and touch targets are untouched, so the layout still maps 1:1 to stock widgets.</p></div>
+<div><div style="font:600 11px/1 ui-monospace,monospace;color:#0074a3;letter-spacing:.08em;margin-bottom:7px">BUILD · stock widgets only</div><p style="font:400 14px/1.5 'Source Serif 4',serif;color:#444141;margin:0;text-wrap:pretty">MaterialToolbar, SearchBar, MaterialCardView, Chip, LinearProgressIndicator, ExtendedFAB, BottomSheet, MaterialAlertDialog, NotificationCompat with <code style="font:400 12px ui-monospace,monospace">CATEGORY_TRANSPORT</code>. The level meter is the only custom View.</p></div>
+<div><div style="font:600 11px/1 ui-monospace,monospace;color:#d6006c;letter-spacing:.08em;margin-bottom:7px">ASSUMED · unanswered</div><p style="font:400 14px/1.5 'Source Serif 4',serif;color:#444141;margin:0;text-wrap:pretty">Audience read as software engineers: real numbers on screen (MB, model name, n/m), no reassurance theatre. Export is .txt + .srt + raw .m4a. Cyan is interactive, magenta means only “the mic is live”.</p></div>
+</div>
+</section>
+
+<section style="padding:22px 48px 10px">
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:18px"><span style="font:600 10px/1 ui-monospace,monospace;padding:3px 7px;background:#201e1d;color:#fff;border-radius:2px">01</span><span style="font:600 15px/1 'Source Serif 4',serif;color:#201e1d">The four screens</span><span style="font:400 13px/1 'Source Serif 4',serif;color:#605d5d">— live: the timer runs, the meter listens, the download downloads, search filters</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start">
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Meetings</strong> — status carries the list</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column;overflow:hidden;position:relative">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 6px 2px 20px">
+    <span style="font:600 23px/1.3 'Source Serif 4',serif;color:#e0e4e6;letter-spacing:.01em">Scribe</span>
+    <div style="display:flex">
+      <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-hard-drives"></i></button>
+      <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-dots-three-vertical"></i></button>
+    </div>
+  </div>
+  <div style="padding:8px 16px 12px">
+    <div style="display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;background:#1b2124;border-radius:26px">
+      <i class="ph-duotone ph-magnifying-glass" style="font-size:20px;color:#bfc8cc"></i>
+      <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Search titles and transcripts" style="flex:1;min-width:0;border:0;outline:0;background:transparent;color:#e0e4e6;font:400 16px/1.4 'Source Serif 4',serif" />
+    </div>
+  </div>
+  <div style="flex:1;overflow:auto;padding:0 8px 108px">
+    <sc-for list="{{ meetings }}" as="m" hint-placeholder-count="5">
+      <div style="display:flex;gap:14px;padding:14px 16px;border-radius:16px;cursor:pointer" style-hover="background:#171c1f">
+        <div style="width:40px;height:40px;flex:none;border-radius:12px;background:#1b2124;display:grid;place-items:center;font-size:20px;color:#bfc8cc;margin-top:2px">
+          <sc-if value="{{ m.live }}" hint-placeholder-val="{{ false }}"><i class="ph-duotone ph-waveform" style="color:#ffb1c8"></i></sc-if>
+          <sc-if value="{{ m.quiet }}" hint-placeholder-val="{{ true }}"><i class="ph-duotone ph-file-text"></i></sc-if>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <sc-if value="{{ m.untitled }}" hint-placeholder-val="{{ false }}">
+              <span style="font:400 17px/1.35 'Source Serif 4',serif;color:#8d9699;font-style:italic">Untitled meeting</span>
+              <i class="ph-duotone ph-pencil-simple" style="font-size:14px;color:#6fd3f2"></i>
+            </sc-if>
+            <sc-if value="{{ m.titled }}" hint-placeholder-val="{{ true }}">
+              <span style="font:600 17px/1.35 'Source Serif 4',serif;color:#e0e4e6;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.title }}</span>
+            </sc-if>
+          </div>
+          <div style="font:400 13px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:2px">{{ m.meta }}</div>
+          <div style="margin-top:9px">
+            <sc-if value="{{ m.isRecording }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:8px;background:#7b2b4e;color:#ffd9e3;font:600 12px/1 'Source Serif 4',serif;letter-spacing:.04em"><span style="width:7px;height:7px;border-radius:4px;background:#ffb1c8;animation:pulseDot 1.4s infinite"></span>RECORDING · {{ liveClock }}</span>
+            </sc-if>
+            <sc-if value="{{ m.isTranscribing }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="flex:1;height:4px;border-radius:2px;background:#2b3336;overflow:hidden"><div style="width:38%;height:100%;background:#6fd3f2;border-radius:2px"></div></div>
+                <span style="font:600 12px/1 'Source Serif 4',serif;color:#6fd3f2;white-space:nowrap">Transcribing 3/8</span>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isQueued }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:8px;border:1px solid #3f484c;color:#bfc8cc;font:600 12px/1 'Source Serif 4',serif"><i class="ph-duotone ph-clock-countdown" style="font-size:14px"></i>Queued</span>
+            </sc-if>
+            <sc-if value="{{ m.isFailed }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;align-items:flex-start;gap:8px">
+                <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 11px;border-radius:8px;background:#93000a;color:#ffdad6;font:600 12px/1 'Source Serif 4',serif"><i class="ph-duotone ph-warning-circle" style="font-size:14px"></i>No space — 41/72 min</span>
+                <button style="height:36px;padding:0 14px;border:1px solid #7a4440;border-radius:10px;background:transparent;color:#ffdad6;font:600 13px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2e1a1a">Free up space &amp; retry</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{ m.isReady }}" hint-placeholder-val="{{ true }}">
+              <span style="font:400 13px/1.45 'Source Serif 4',serif;color:#6d7679;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ m.snippet }}</span>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-for>
+    <sc-if value="{{ noResults }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:52px 28px;text-align:center">
+        <i class="ph-duotone ph-magnifying-glass" style="font-size:36px;color:#3f484c"></i>
+        <div style="font:600 18px/1.4 'Source Serif 4',serif;color:#e0e4e6;margin-top:14px">Nothing matches “{{ query }}”</div>
+        <div style="font:400 14px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:6px">Titles and transcript text only. The two meetings still in the queue aren't indexed yet.</div>
+      </div>
+    </sc-if>
+  </div>
+  <div style="position:absolute;right:24px;bottom:82px">
+    <button style="display:flex;align-items:center;gap:12px;height:56px;padding:0 20px;border:0;border-radius:16px;background:#6fd3f2;color:#003543;font:600 15px/1 'Source Serif 4',serif;box-shadow:0 6px 16px rgba(0,0,0,.45);cursor:pointer" style-hover="background:#8bdcf5"><i class="ph-duotone ph-microphone" style="font-size:22px"></i>Record</button>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Recording</strong> — built to be left alone</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;padding:4px 6px">
+    <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-caret-down"></i></button>
+    <span style="font:400 15px/1 'Source Serif 4',serif;color:#bfc8cc;margin-left:4px">Recording</span>
+  </div>
+  <div style="padding:14px 28px 0">
+    <div style="display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px;border-radius:8px;background:#7b2b4e;color:#ffd9e3;font:600 12px/1 'Source Serif 4',serif;letter-spacing:.05em"><span style="width:7px;height:7px;border-radius:4px;background:#ffb1c8;animation:pulseDot 1.4s infinite"></span>MIC LIVE · ON DEVICE</div>
+    <div style="font:400 66px/1 'Source Serif 4',serif;color:#e0e4e6;margin-top:22px;font-variant-numeric:tabular-nums;letter-spacing:.01em">{{ recClock }}</div>
+    <div style="font:400 15px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:8px">Started 14:02 · 44.1 kHz mono · 184 MB free after this</div>
+  </div>
+  <div style="margin-top:28px;padding:0 20px">
+    <div style="height:150px;background:#151a1d;border-radius:20px;display:flex;align-items:center;justify-content:center;gap:3px;padding:0 18px;overflow:hidden">
+      <sc-for list="{{ bars }}" as="b" hint-placeholder-count="38">
+        <div style="width:4px;border-radius:2px;background:#ffb1c8;height:{{ b.h }}"></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:10px;padding:0 4px;font:400 12px/1 'Source Serif 4',serif;color:#6d7679"><span>Input level · peak −11 dB</span><span>Built-in mic</span></div>
+  </div>
+  <div style="margin:24px 20px 0;padding:16px 18px;border-radius:18px;background:#171c1f;display:flex;gap:14px">
+    <i class="ph-duotone ph-bell-ringing" style="font-size:22px;color:#6fd3f2;margin-top:1px"></i>
+    <div><div style="font:600 15px/1.4 'Source Serif 4',serif;color:#e0e4e6">Lock the screen — it keeps running</div><div style="font:400 13px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:3px">Foreground service with an ongoing notification; stop from the lock screen or the status bar chip without unlocking.</div></div>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:34px;padding:0 0 40px">
+    <button style="width:56px;height:56px;border:1px solid #3f484c;border-radius:28px;background:transparent;color:#bfc8cc;font-size:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-bookmark-simple"></i></button>
+    <div style="position:relative;display:grid;place-items:center">
+      <div style="position:absolute;width:88px;height:88px;border-radius:50%;background:#ffb1c8;animation:ring 2.4s infinite"></div>
+      <button style="position:relative;width:88px;height:88px;border:0;border-radius:44px;background:#ffb1c8;color:#5c1136;display:grid;place-items:center;cursor:pointer" style-hover="background:#ffc6d7"><i class="ph-duotone ph-stop" style="font-size:34px"></i></button>
+    </div>
+    <button style="width:56px;height:56px;border:1px solid #3f484c;border-radius:28px;background:transparent;color:#bfc8cc;font-size:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-pause"></i></button>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Transcript</strong> — plain timestamped lines</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;background:#171c1f">
+    <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-arrow-left"></i></button>
+    <div style="display:flex">
+      <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-magnifying-glass"></i></button>
+      <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-export"></i></button>
+      <button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-dots-three-vertical"></i></button>
+    </div>
+  </div>
+  <div style="padding:6px 20px 18px;background:#171c1f">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <h2 style="font:600 28px/1.2 'Source Serif 4',serif;color:#e0e4e6;margin:0;flex:1;text-wrap:pretty">Q3 roadmap — cut scope or slip?</h2>
+      <button style="width:40px;height:40px;flex:none;border:0;border-radius:20px;background:transparent;color:#6fd3f2;font-size:19px;cursor:pointer" style-hover="background:#262c2f"><i class="ph-duotone ph-pencil-simple"></i></button>
+    </div>
+    <div style="font:400 13px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:6px">Thu 18 Sep · 14:02 · 47 min · title drafted from line 1</div>
+    <div style="display:flex;gap:8px;margin-top:14px">
+      <span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border-radius:8px;background:#004e60;color:#bbe9fb;font:600 13px/1 'Source Serif 4',serif"><i class="ph-duotone ph-text-aa" style="font-size:15px"></i>Transcript</span>
+      <span style="display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border-radius:8px;border:1px solid #3f484c;color:#bfc8cc;font:600 13px/1 'Source Serif 4',serif"><i class="ph-duotone ph-speaker-high" style="font-size:15px"></i>Audio</span>
+    </div>
+  </div>
+  <div style="flex:1;overflow:auto;padding:20px 20px 30px">
+    <sc-for list="{{ lines }}" as="l" hint-placeholder-count="7">
+      <div style="display:flex;gap:14px;margin-bottom:17px">
+        <span style="font:400 12px/1.7 'Source Serif 4',serif;color:#6fd3f2;width:42px;flex:none;font-variant-numeric:tabular-nums;padding-top:3px">{{ l.t }}</span>
+        <p style="font:400 16px/1.62 'Source Serif 4',serif;color:#dbe0e2;margin:0;flex:1;min-width:0;text-wrap:pretty">{{ l.text }}</p>
+      </div>
+    </sc-for>
+  </div>
+  <div style="padding:10px 16px 26px;background:#151a1d;display:flex;align-items:center;gap:14px">
+    <button style="width:44px;height:44px;border:0;border-radius:22px;background:#6fd3f2;color:#003543;font-size:20px;display:grid;place-items:center;cursor:pointer"><i class="ph-duotone ph-play"></i></button>
+    <div style="flex:1"><div style="height:4px;border-radius:2px;background:#2b3336"><div style="width:22%;height:100%;background:#6fd3f2;border-radius:2px"></div></div></div>
+    <span style="font:400 12px/1 'Source Serif 4',serif;color:#8d9699;font-variant-numeric:tabular-nums">10:18 / 47:02</span>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">First run</strong> — one bar, one sentence, one escape hatch</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column;padding:0 24px">
+  <div style="padding-top:24px">
+    <div style="width:52px;height:52px;border-radius:18px;background:#004e60;display:grid;place-items:center"><i class="ph-duotone ph-cloud-arrow-down" style="font-size:28px;color:#bbe9fb"></i></div>
+    <h2 style="font:600 32px/1.15 'Source Serif 4',serif;color:#e0e4e6;margin:18px 0 0;text-wrap:pretty">Downloading the speech models</h2>
+    <p style="font:400 16px/1.55 'Source Serif 4',serif;color:#bfc8cc;margin:10px 0 0;text-wrap:pretty">615 MB, once. After this, transcription runs entirely on this device — no account, no upload, works in aeroplane mode.</p>
+  </div>
+  <div style="margin-top:20px;padding:18px;border-radius:20px;background:#171c1f">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <span style="font:600 24px/1 'Source Serif 4',serif;color:#e0e4e6;font-variant-numeric:tabular-nums">{{ dlPct }}%</span>
+      <span style="font:400 14px/1 'Source Serif 4',serif;color:#bfc8cc">{{ dlEta }}</span>
+    </div>
+    <div style="height:8px;border-radius:4px;background:#2b3336;margin-top:14px;overflow:hidden"><div style="height:100%;background:#6fd3f2;border-radius:4px;transition:width .4s linear;width:{{ dlPct }}%"></div></div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-top:10px">
+      <span style="font:400 13px/1.4 'Source Serif 4',serif;color:#8d9699">{{ dlDone }} of 615 MB · 2.1 MB/s</span>
+      <span style="font:400 13px/1.4 'Source Serif 4',serif;color:#8d9699">Wi-Fi</span>
+    </div>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid #262c2f;display:flex;align-items:center;justify-content:space-between;gap:14px">
+      <div style="flex:1"><div style="font:400 14px/1.4 'Source Serif 4',serif;color:#e0e4e6">Pause on mobile data</div><div style="font:400 12px/1.4 'Source Serif 4',serif;color:#8d9699;margin-top:2px">Resumes by itself on Wi-Fi</div></div>
+      <div style="width:52px;height:32px;border-radius:16px;background:#6fd3f2;position:relative;flex:none;cursor:pointer"><div style="position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:12px;background:#003543"></div></div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:8px">
+      <button style="height:38px;padding:0 16px;border:1px solid #3f484c;border-radius:10px;background:transparent;color:#bfc8cc;font:600 13px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#262c2f">Pause</button>
+      <button style="height:38px;padding:0 16px;border:1px solid #3f484c;border-radius:10px;background:transparent;color:#bfc8cc;font:600 13px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#262c2f">What's in the 615 MB?</button>
+    </div>
+  </div>
+  <div style="margin-top:16px;padding:14px 18px;border-radius:20px;background:#0c2a33;display:flex;gap:13px">
+    <i class="ph-duotone ph-microphone" style="font-size:22px;color:#6fd3f2;margin-top:1px"></i>
+    <div><div style="font:600 15px/1.4 'Source Serif 4',serif;color:#bbe9fb">Recording already works</div><div style="font:400 13px/1.5 'Source Serif 4',serif;color:#9fb6bd;margin-top:3px">Audio captured now is saved and queued; it transcribes automatically the moment the download lands. You do not have to wait here.</div></div>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;flex-direction:column;gap:10px;padding-bottom:34px">
+    <button style="height:52px;border:0;border-radius:16px;background:#6fd3f2;color:#003543;font:600 15px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#8bdcf5">Start recording now</button>
+    <button style="height:52px;border:0;border-radius:16px;background:transparent;color:#6fd3f2;font:600 15px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#171c1f">Notify me when it's done</button>
+  </div>
+</div>
+</x-import></div>
+
+</div>
+</section>
+
+<section style="padding:34px 48px 70px">
+<div style="display:flex;align-items:baseline;gap:10px;margin-bottom:18px"><span style="font:600 10px/1 ui-monospace,monospace;padding:3px 7px;background:#201e1d;color:#fff;border-radius:2px">02</span><span style="font:600 15px/1 'Source Serif 4',serif;color:#201e1d">States</span><span style="font:400 13px/1 'Source Serif 4',serif;color:#605d5d">— silence, the stop prompt, no space, delete, and the screen-off surfaces</span></div>
+<div style="display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start">
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Silence at 45s</strong> — diagnose, don't panic</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;padding:4px 6px"><button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer"><i class="ph-duotone ph-caret-down"></i></button><span style="font:400 15px/1 'Source Serif 4',serif;color:#bfc8cc;margin-left:4px">Recording</span></div>
+  <div style="padding:14px 28px 0">
+    <div style="display:inline-flex;align-items:center;gap:8px;height:28px;padding:0 12px;border-radius:8px;background:#4a2a10;color:#ffdcbd;font:600 12px/1 'Source Serif 4',serif;letter-spacing:.05em"><i class="ph-duotone ph-warning" style="font-size:15px"></i>SILENT FOR 45s</div>
+    <div style="font:400 66px/1 'Source Serif 4',serif;color:#e0e4e6;margin-top:22px;font-variant-numeric:tabular-nums">12:47</div>
+    <div style="font:400 15px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:8px">Still recording · peak −71 dB since 14:14</div>
+  </div>
+  <div style="margin-top:28px;padding:0 20px">
+    <div style="height:150px;background:#151a1d;border-radius:20px;display:flex;align-items:center;justify-content:center;gap:3px;padding:0 18px;overflow:hidden">
+      <sc-for list="{{ flatBars }}" as="b" hint-placeholder-count="38">
+        <div style="width:4px;border-radius:2px;background:#3f484c;height:{{ b.h }}"></div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="margin:22px 20px 0;padding:18px;border-radius:20px;background:#3b2a12">
+    <div style="display:flex;gap:13px"><i class="ph-duotone ph-microphone-slash" style="font-size:22px;color:#ffb877;margin-top:1px"></i>
+      <div><div style="font:600 16px/1.4 'Source Serif 4',serif;color:#ffdcbd">Nothing above the noise floor for 45 seconds</div><div style="font:400 13px/1.55 'Source Serif 4',serif;color:#dcc0a3;margin-top:4px">Most often: something is over the mic, or another app grabbed the audio input. The file is still being written either way.</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;padding-left:35px">
+      <button style="height:38px;padding:0 16px;border:0;border-radius:10px;background:#ffb877;color:#452a00;font:600 13px/1 'Source Serif 4',serif;cursor:pointer">Test the mic</button>
+      <button style="height:38px;padding:0 16px;border:1px solid #6b5533;border-radius:10px;background:transparent;color:#ffdcbd;font:600 13px/1 'Source Serif 4',serif;cursor:pointer">Dismiss</button>
+    </div>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;align-items:center;justify-content:center;gap:34px;padding:0 0 40px">
+    <button style="width:56px;height:56px;border:1px solid #3f484c;border-radius:28px;background:transparent;color:#bfc8cc;font-size:24px;cursor:pointer"><i class="ph-duotone ph-bookmark-simple"></i></button>
+    <button style="width:88px;height:88px;border:0;border-radius:44px;background:#ffb1c8;color:#5c1136;display:grid;place-items:center;cursor:pointer"><i class="ph-duotone ph-stop" style="font-size:34px"></i></button>
+    <button style="width:56px;height:56px;border:1px solid #3f484c;border-radius:28px;background:transparent;color:#bfc8cc;font-size:24px;cursor:pointer"><i class="ph-duotone ph-pause"></i></button>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">On stop</strong> — name it while you still remember</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;position:relative;display:flex;flex-direction:column">
+  <div style="opacity:.3;pointer-events:none;padding:22px 28px 0">
+    <div style="font:400 66px/1 'Source Serif 4',serif;color:#e0e4e6;font-variant-numeric:tabular-nums">34:19</div>
+    <div style="font:400 15px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:8px">Stopped · 32 MB written</div>
+    <div style="height:150px;background:#151a1d;border-radius:20px;margin-top:28px"></div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
+  <div style="position:absolute;left:24px;right:24px;top:180px;background:#232a2d;border-radius:28px;padding:24px">
+    <i class="ph-duotone ph-textbox" style="font-size:26px;color:#6fd3f2"></i>
+    <h3 style="font:600 24px/1.25 'Source Serif 4',serif;color:#e0e4e6;margin:14px 0 0">Name this meeting</h3>
+    <p style="font:400 14px/1.55 'Source Serif 4',serif;color:#bfc8cc;margin:8px 0 0">Optional. Skip it and Scribe drafts one from the first line of the transcript.</p>
+    <div style="margin-top:18px;border-bottom:2px solid #6fd3f2;background:#1b2124;border-radius:8px 8px 0 0;padding:10px 14px">
+      <div style="font:400 12px/1 'Source Serif 4',serif;color:#6fd3f2">Title</div>
+      <div style="font:400 17px/1.4 'Source Serif 4',serif;color:#e0e4e6;margin-top:5px">Vendor call — Northwind<span style="display:inline-block;width:2px;height:18px;background:#6fd3f2;vertical-align:-3px;margin-left:1px;animation:pulseDot 1.1s infinite"></span></div>
+    </div>
+    <div style="font:400 12px/1.4 'Source Serif 4',serif;color:#8d9699;margin-top:8px">Thu 18 Sep · 14:02 · 34 min · queued for transcription</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:22px">
+      <button style="height:40px;padding:0 16px;border:0;border-radius:10px;background:transparent;color:#6fd3f2;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2b3336">Skip</button>
+      <button style="height:40px;padding:0 20px;border:0;border-radius:10px;background:#6fd3f2;color:#003543;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#8bdcf5">Save</button>
+    </div>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Storage full</strong> — the audio survives</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;padding:4px 6px"><button style="width:48px;height:48px;border:0;background:transparent;color:#bfc8cc;font-size:22px;border-radius:24px;cursor:pointer"><i class="ph-duotone ph-arrow-left"></i></button></div>
+  <div style="padding:6px 20px 0">
+    <h2 style="font:600 28px/1.2 'Source Serif 4',serif;color:#e0e4e6;margin:0;text-wrap:pretty">Board prep</h2>
+    <div style="font:400 13px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:6px">Mon 15 Sep · 09:00 · 1 h 12 min · 68 MB audio</div>
+  </div>
+  <div style="margin:22px 20px 0;padding:20px;border-radius:20px;background:#3a0a09">
+    <div style="display:flex;gap:13px"><i class="ph-duotone ph-warning-circle" style="font-size:24px;color:#ffb4ab;margin-top:1px"></i>
+      <div><div style="font:600 17px/1.35 'Source Serif 4',serif;color:#ffdad6">Out of space at 41 of 72 minutes</div><div style="font:400 13px/1.55 'Source Serif 4',serif;color:#e3b8b4;margin-top:5px">Transcription needs about 300 MB of scratch space; 40 MB is free. <strong style="font-weight:600">The recording itself is intact</strong> — all 68 MB of audio, and the first 41 minutes of text below.</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px;padding-left:37px">
+      <button style="height:40px;padding:0 18px;border:0;border-radius:10px;background:#ffb4ab;color:#690005;font:600 14px/1 'Source Serif 4',serif;cursor:pointer">Free up space</button>
+      <button style="height:40px;padding:0 16px;border:1px solid #7a4440;border-radius:10px;background:transparent;color:#ffdad6;font:600 14px/1 'Source Serif 4',serif;cursor:pointer">Export audio</button>
+    </div>
+  </div>
+  <div style="margin:18px 20px 0;padding:14px 16px;border-radius:16px;background:#171c1f;display:flex;align-items:center;gap:12px">
+    <i class="ph-duotone ph-hard-drives" style="font-size:20px;color:#bfc8cc"></i>
+    <div style="flex:1"><div style="font:400 13px/1.4 'Source Serif 4',serif;color:#bfc8cc">Scribe is using 2.4 GB — 31 recordings</div><div style="height:6px;border-radius:3px;background:#2b3336;margin-top:8px;overflow:hidden;display:flex"><div style="width:62%;height:100%;background:#6fd3f2"></div><div style="width:9%;height:100%;background:#ffb1c8"></div></div></div>
+    <span style="font:600 13px/1 'Source Serif 4',serif;color:#6fd3f2">Manage</span>
+  </div>
+  <div style="padding:24px 20px 8px;font:600 12px/1 'Source Serif 4',serif;color:#8d9699;letter-spacing:.06em">TRANSCRIBED SO FAR · 00:00 — 41:12</div>
+  <div style="flex:1;overflow:hidden;padding:4px 20px 0">
+    <sc-for list="{{ partialLines }}" as="l" hint-placeholder-count="4">
+      <div style="display:flex;gap:14px;margin-bottom:17px">
+        <span style="font:400 12px/1.7 'Source Serif 4',serif;color:#6fd3f2;width:42px;flex:none;font-variant-numeric:tabular-nums;padding-top:3px">{{ l.t }}</span>
+        <p style="font:400 16px/1.62 'Source Serif 4',serif;color:#dbe0e2;margin:0;flex:1;min-width:0;text-wrap:pretty">{{ l.text }}</p>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Delete</strong> — irreversible, so say what goes</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#0f1417;position:relative;display:flex;flex-direction:column">
+  <div style="opacity:.3;pointer-events:none;padding:16px 20px 0">
+    <h2 style="font:600 28px/1.2 'Source Serif 4',serif;color:#e0e4e6;margin:0">Q3 roadmap — cut scope or slip?</h2>
+    <div style="font:400 13px/1.5 'Source Serif 4',serif;color:#8d9699;margin-top:6px">Thu 18 Sep · 47 min</div>
+    <div style="margin-top:22px">
+      <sc-for list="{{ partialLines }}" as="l" hint-placeholder-count="4">
+        <p style="font:400 16px/1.62 'Source Serif 4',serif;color:#dbe0e2;margin:0 0 17px">{{ l.text }}</p>
+      </sc-for>
+    </div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(0,0,0,.55)"></div>
+  <div style="position:absolute;left:24px;right:24px;top:200px;background:#232a2d;border-radius:28px;padding:24px">
+    <i class="ph-duotone ph-trash" style="font-size:26px;color:#ffb4ab"></i>
+    <h3 style="font:600 24px/1.25 'Source Serif 4',serif;color:#e0e4e6;margin:14px 0 0;text-wrap:pretty">Delete “Q3 roadmap — cut scope or slip?”</h3>
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;gap:10px;align-items:baseline"><i class="ph-duotone ph-waveform" style="font-size:16px;color:#8d9699"></i><span style="font:400 14px/1.5 'Source Serif 4',serif;color:#bfc8cc">47 min of audio · 44 MB</span></div>
+      <div style="display:flex;gap:10px;align-items:baseline"><i class="ph-duotone ph-file-text" style="font-size:16px;color:#8d9699"></i><span style="font:400 14px/1.5 'Source Serif 4',serif;color:#bfc8cc">418 transcript lines</span></div>
+    </div>
+    <p style="font:400 14px/1.55 'Source Serif 4',serif;color:#8d9699;margin:16px 0 0">Nothing is synced anywhere, so this cannot be recovered. Exported copies are unaffected.</p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:22px">
+      <button style="height:40px;padding:0 16px;border:0;border-radius:10px;background:transparent;color:#6fd3f2;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2b3336">Cancel</button>
+      <button style="height:40px;padding:0 20px;border:0;border-radius:10px;background:#ffb4ab;color:#690005;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#ffc9c3">Delete</button>
+    </div>
+  </div>
+</div>
+</x-import></div>
+
+<div style="display:flex;flex-direction:column;gap:9px"><div style="font:400 12px/1.3 'Source Serif 4',serif;color:#605d5d"><strong style="font-weight:600;color:#201e1d">Screen off</strong> — lock screen, notification, status chip</div>
+<x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+<div style="height:100%;background:#080b0d;display:flex;flex-direction:column;padding:0 16px">
+  <div style="display:flex;justify-content:center;margin-top:8px">
+    <div style="display:inline-flex;align-items:center;gap:7px;height:28px;padding:0 12px;border-radius:14px;background:#7b2b4e;color:#ffd9e3;font:600 12px/1 'Source Serif 4',serif"><span style="width:6px;height:6px;border-radius:3px;background:#ffb1c8;animation:pulseDot 1.4s infinite"></span>{{ liveClock }}</div>
+  </div>
+  <div style="text-align:center;padding:26px 0 8px">
+    <div style="font:400 72px/1 'Source Serif 4',serif;color:#e8ecee;font-variant-numeric:tabular-nums">14:11</div>
+    <div style="font:400 15px/1.4 'Source Serif 4',serif;color:#9aa4a7;margin-top:4px">Thursday, 18 September</div>
+  </div>
+  <div style="margin-top:22px;background:#1b2124;border-radius:24px;padding:16px 18px">
+    <div style="display:flex;align-items:center;gap:8px;font:400 12px/1 'Source Serif 4',serif;color:#8d9699"><i class="ph-duotone ph-waveform" style="font-size:15px;color:#ffb1c8"></i>Scribe · now</div>
+    <div style="font:600 17px/1.35 'Source Serif 4',serif;color:#e0e4e6;margin-top:9px">Recording — {{ liveClock }}</div>
+    <div style="font:400 14px/1.5 'Source Serif 4',serif;color:#bfc8cc;margin-top:3px">Untitled meeting · 41 MB written · transcribes on stop</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:2px;height:26px;margin-top:12px">
+      <sc-for list="{{ miniBars }}" as="b" hint-placeholder-count="30">
+        <div style="width:3px;border-radius:2px;background:#ffb1c8;height:{{ b.h }}"></div>
+      </sc-for>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #2b3336">
+      <button style="flex:1;height:38px;border:0;border-radius:10px;background:transparent;color:#ffb1c8;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2b3336">Stop</button>
+      <button style="flex:1;height:38px;border:0;border-radius:10px;background:transparent;color:#6fd3f2;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2b3336">Pause</button>
+      <button style="flex:1;height:38px;border:0;border-radius:10px;background:transparent;color:#6fd3f2;font:600 14px/1 'Source Serif 4',serif;cursor:pointer" style-hover="background:#2b3336">Mark</button>
+    </div>
+  </div>
+  <div style="margin-top:12px;background:#151a1d;border-radius:24px;padding:14px 18px;display:flex;align-items:center;gap:12px">
+    <i class="ph-duotone ph-shield-check" style="font-size:20px;color:#6fd3f2"></i>
+    <div style="font:400 13px/1.45 'Source Serif 4',serif;color:#8d9699">Microphone in use by Scribe · no network activity</div>
+  </div>
+  <div style="flex:1"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:0 12px 34px">
+    <div style="width:52px;height:52px;border-radius:26px;background:#1b2124;display:grid;place-items:center;color:#bfc8cc;font-size:22px"><i class="ph-duotone ph-phone"></i></div>
+    <div style="font:400 13px/1 'Source Serif 4',serif;color:#6d7679">Swipe up to unlock</div>
+    <div style="width:52px;height:52px;border-radius:26px;background:#1b2124;display:grid;place-items:center;color:#bfc8cc;font-size:22px"><i class="ph-duotone ph-camera"></i></div>
+  </div>
+</div>
+</x-import></div>
+
+</div>
+<p style="margin:30px 0 0;font:400 13px/1.6 'Source Serif 4',serif;color:#605d5d;max-width:66ch;text-wrap:pretty">Try next: “show the transcribing-queue screen with per-file progress” · “two alternatives for the list row” · “add the settings screen — storage, model management, mic source”.</p>
+</section>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1280,&quot;height&quot;:1100}}">
+class Component extends DCLogic {
+  state = { t: 521, dl: 62.4, bars: [], mini: [], q: '' };
+
+  componentDidMount() {
+    this.tick = setInterval(() => {
+      this.setState(s => ({ t: s.t + 1, dl: s.dl >= 99.4 ? 8 : s.dl + 0.35 }));
+    }, 1000);
+    this.meter = setInterval(() => {
+      const gen = (n, max) => {
+        const out = [], env = Math.random() < 0.18 ? 0.25 : 1;
+        for (let i = 0; i < n; i++) {
+          const centre = 1 - Math.abs(i - n / 2) / (n / 1.5);
+          const v = (0.16 + Math.random() * 0.84) * centre * env;
+          out.push({ h: Math.max(4, Math.round(v * max)) + 'px' });
+        }
+        return out;
+      };
+      this.setState({ bars: gen(38, 118), mini: gen(30, 24) });
+    }, 110);
+  }
+  componentWillUnmount() { clearInterval(this.tick); clearInterval(this.meter); }
+
+  clock(s, withHours) {
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+    const p = n => String(n).padStart(2, '0');
+    return withHours && h ? `${h}:${p(m)}:${p(ss)}` : `${p(m)}:${p(ss)}`;
+  }
+
+  renderVals() {
+    const q = this.state.q.trim().toLowerCase();
+    const all = [
+      { key: 'a', untitled: true, meta: 'Today · 14:02 · in progress', status: 'recording', live: true },
+      { key: 'b', title: 'Vendor call — Northwind pricing', meta: 'Today · 11:15 · 34 min · named on stop', status: 'transcribing' },
+      { key: 'c', untitled: true, meta: 'Today · 09:30 · 22 min', status: 'queued' },
+      { key: 'd', title: 'Q3 roadmap — cut scope or slip?', meta: 'Thu 18 Sep · 47 min · 418 lines', status: 'ready', snippet: '“If we hold the date we ship half a feature…”' },
+      { key: 'e', title: '1:1 with Priya — promo case', meta: 'Tue 16 Sep · 28 min · 214 lines', status: 'ready', snippet: '“I want the staff packet ready before November.”' },
+      { key: 'f', title: 'Board prep', meta: 'Mon 15 Sep · 1 h 12 min', status: 'failed' }
+    ];
+    const meetings = all
+      .filter(m => !q || ((m.title || 'untitled meeting') + ' ' + (m.snippet || '')).toLowerCase().includes(q))
+      .map(m => ({
+        ...m,
+        titled: !m.untitled,
+        quiet: !m.live,
+        isRecording: m.status === 'recording',
+        isTranscribing: m.status === 'transcribing',
+        isQueued: m.status === 'queued',
+        isFailed: m.status === 'failed',
+        isReady: m.status === 'ready'
+      }));
+
+    const dl = Math.min(99, this.state.dl);
+    const mins = Math.max(1, Math.round((100 - dl) * 0.09));
+
+    return {
+      meetings,
+      noResults: meetings.length === 0,
+      query: this.state.q,
+      onQuery: e => this.setState({ q: e.target.value }),
+      liveClock: this.clock(this.state.t),
+      recClock: this.clock(this.state.t, true),
+      bars: this.state.bars.length ? this.state.bars : Array.from({ length: 38 }, () => ({ h: '10px' })),
+      miniBars: this.state.mini.length ? this.state.mini : Array.from({ length: 30 }, () => ({ h: '5px' })),
+      flatBars: Array.from({ length: 38 }, (_, i) => ({ h: (i % 3 === 0 ? 5 : 3) + 'px' })),
+      dlPct: Math.round(dl),
+      dlDone: Math.round(dl * 6.15) + ' MB',
+      dlEta: mins > 1 ? `about ${mins} min left` : 'less than a minute left',
+      lines: [
+        { t: '00:12', text: 'Right — the only real question today is whether we cut scope or slip the date. I don\u2019t think we get both.' },
+        { t: '00:31', text: 'If we hold the date we ship half a feature, and half of this one is worse than none of it. The import flow is the whole point.' },
+        { t: '01:04', text: 'Agreed on import. What I\u2019m less sure about is the offline model — three weeks on its own, and nobody outside the team has asked for it.' },
+        { t: '01:22', text: 'Two of the four enterprise calls last month asked directly. Not loud, but not nothing.' },
+        { t: '01:47', text: 'Proposal: import ships on the date, offline goes to the November train, and we tell those two accounts personally rather than in release notes.' },
+        { t: '02:09', text: 'I can live with that. I\u2019ll write to both today so nobody hears it secondhand.' },
+        { t: '02:31', text: 'Then the only open thread is who picks up the migration script while Dan is out.' }
+      ],
+      partialLines: [
+        { t: '00:08', text: 'Let\u2019s start with the quarter numbers and come back to hiring.' },
+        { t: '00:26', text: 'Revenue landed just above plan, mostly on renewals rather than new logos.' },
+        { t: '00:51', text: 'The churn we saw in July has not repeated, which I think settles that argument.' },
+        { t: '01:18', text: 'On hiring we are three engineers behind, and the pipeline is thin at senior.' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

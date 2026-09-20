@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Source Serif 4 ships upstream only as a variable font, so each weight the app
+  uses is an instance of the one file rather than a separate TTF. minSdk is 29,
+  well past the API 26 that fontVariationSettings needs.
+-->
+<font-family xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <font
+        android:font="@font/source_serif"
+        android:fontWeight="400"
+        android:fontStyle="normal"
+        app:font="@font/source_serif"
+        app:fontWeight="400"
+        app:fontStyle="normal"
+        android:fontVariationSettings="'wght' 400" />
+</font-family>

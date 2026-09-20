@@ -31,11 +31,14 @@ class LevelMeterView @JvmOverloads constructor(
     private val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val quietPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rect = RectF()
+    private val density = context.resources.displayMetrics.density
 
     init {
-        barPaint.color = ContextCompat.getColor(context, R.color.scribe_primary)
-        quietPaint.color = ContextCompat.getColor(context, R.color.scribe_primary)
-        quietPaint.alpha = 60
+        // Magenta is the app's one signal for "the microphone is live". A bar
+        // that drops to the outline grey is saying the opposite, so the two
+        // colours have to stay distinguishable at a glance from a desk away.
+        barPaint.color = ContextCompat.getColor(context, R.color.s_mic)
+        quietPaint.color = ContextCompat.getColor(context, R.color.s_outline)
     }
 
     /** @param level peak amplitude 0..1 from the capture loop. */
@@ -56,12 +59,16 @@ class LevelMeterView @JvmOverloads constructor(
         if (filled == 0) return
         val w = width.toFloat()
         val h = height.toFloat()
-        val slot = w / VISIBLE
-        val barW = max(2f, slot * 0.55f)
+        // Fixed 4dp bars on a 7dp pitch, as drawn in the design, rather than a
+        // width derived from the view: the bars should look identical whatever
+        // surface they sit on.
+        val slot = BAR_W_DP * density + GAP_DP * density
+        val barW = BAR_W_DP * density
         val radius = barW / 2f
+        val visible = (w / slot).toInt().coerceAtLeast(1)
 
         // Draw right-to-left from newest, so the meter scrolls like a tape.
-        for (i in 0 until minOf(filled, VISIBLE)) {
+        for (i in 0 until minOf(filled, visible)) {
             val v = bars[(head - 1 - i + CAPACITY * 2) % CAPACITY]
             val cx = w - (i + 0.5f) * slot
             // Always draw something: a dead-flat strip is itself the signal, and
@@ -74,8 +81,8 @@ class LevelMeterView @JvmOverloads constructor(
 
     private companion object {
         const val CAPACITY = 256
-        /** Bars visible at once — ~15s of meeting at the capture loop's rate. */
-        const val VISIBLE = 96
+        const val BAR_W_DP = 4f
+        const val GAP_DP = 3f
         /** Below this normalised level, a bar is drawn dimmed as "basically silence". */
         const val QUIET = 0.08f
 

@@ -1,18 +1,77 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <style name="Theme.Scribe" parent="Theme.Material3.DayNight.NoActionBar">
+
+    <!--
+      Dark only. The design is built on a near-black ground with two accents,
+      and a light variant would need its own palette rather than a flip, so the
+      app opts out of DayNight entirely.
+    -->
+    <style name="Theme.Scribe" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/s_cyan</item>
+        <item name="colorOnPrimary">@color/s_on_cyan</item>
+        <item name="colorPrimaryContainer">@color/s_cyan_container</item>
+        <item name="colorOnPrimaryContainer">@color/s_on_cyan_container</item>
+
+        <item name="colorSecondary">@color/s_mic</item>
+        <item name="colorOnSecondary">@color/s_on_mic</item>
+        <item name="colorSecondaryContainer">@color/s_mic_container</item>
+        <item name="colorOnSecondaryContainer">@color/s_on_mic_container</item>
+
+        <item name="colorError">@color/s_error</item>
+        <item name="colorOnError">@color/s_on_error</item>
+        <item name="colorErrorContainer">@color/s_error_container</item>
+        <item name="colorOnErrorContainer">@color/s_on_error_container</item>
+
+        <item name="android:colorBackground">@color/s_bg</item>
+        <item name="colorSurface">@color/s_bg</item>
+        <item name="colorOnSurface">@color/s_text</item>
+        <item name="colorSurfaceVariant">@color/s_surface_2</item>
+        <item name="colorOnSurfaceVariant">@color/s_text_dim</item>
+        <item name="colorOutline">@color/s_outline</item>
+        <item name="colorOutlineVariant">@color/s_divider</item>
+
+        <item name="android:statusBarColor">@color/s_bg</item>
+        <item name="android:navigationBarColor">@color/s_bg</item>
+        <item name="android:windowLightStatusBar">false</item>
+
         <!--
-          colorPrimary alone is not enough: Material3 keeps its own default
-          colorOnPrimary (a purple) for anything painted on top, which is how
-          the record button ended up purple-on-green. Every colour that sits on
-          top of one we override has to be overridden with it.
+          Source Serif 4 at every size, labels and buttons included. Only the
+          family is overridden — the M3 type scale, spacing and touch targets
+          stay stock, so every layout still maps 1:1 onto the standard widgets.
         -->
-        <item name="colorPrimary">@color/scribe_primary</item>
-        <item name="colorOnPrimary">@color/scribe_on_primary</item>
-        <item name="colorPrimaryContainer">@color/scribe_primary_container</item>
-        <item name="colorOnPrimaryContainer">@color/scribe_on_primary_container</item>
-        <item name="colorSecondary">@color/scribe_primary</item>
-        <item name="colorOnSecondary">@color/scribe_on_primary</item>
-        <item name="colorError">@color/rec_red</item>
+        <item name="textAppearanceDisplayLarge">@style/Text.Display</item>
+        <item name="textAppearanceDisplayMedium">@style/Text.Display</item>
+        <item name="textAppearanceHeadlineLarge">@style/Text.Headline</item>
+        <item name="textAppearanceHeadlineMedium">@style/Text.Headline</item>
+        <item name="textAppearanceHeadlineSmall">@style/Text.Headline</item>
+        <item name="textAppearanceTitleLarge">@style/Text.Title</item>
+        <item name="textAppearanceTitleMedium">@style/Text.Title</item>
+        <item name="textAppearanceBodyLarge">@style/Text.Body</item>
+        <item name="textAppearanceBodyMedium">@style/Text.Body</item>
+        <item name="textAppearanceBodySmall">@style/Text.Body</item>
+        <item name="textAppearanceLabelLarge">@style/Text.Label</item>
+        <item name="textAppearanceLabelMedium">@style/Text.Label</item>
+        <item name="textAppearanceLabelSmall">@style/Text.Label</item>
+    </style>
+
+    <style name="Text.Display" parent="TextAppearance.Material3.DisplayMedium">
+        <item name="android:fontFamily">@font/serif_regular</item>
+        <item name="fontFamily">@font/serif_regular</item>
+    </style>
+    <style name="Text.Headline" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:fontFamily">@font/serif_semibold</item>
+        <item name="fontFamily">@font/serif_semibold</item>
+    </style>
+    <style name="Text.Title" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:fontFamily">@font/serif_semibold</item>
+        <item name="fontFamily">@font/serif_semibold</item>
+    </style>
+    <style name="Text.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:fontFamily">@font/serif_regular</item>
+        <item name="fontFamily">@font/serif_regular</item>
+    </style>
+    <style name="Text.Label" parent="TextAppearance.Material3.LabelLarge">
+        <item name="android:fontFamily">@font/serif_semibold</item>
+        <item name="fontFamily">@font/serif_semibold</item>
     </style>
 
     <style name="Theme.Scribe.Transparent" parent="Theme.Scribe">

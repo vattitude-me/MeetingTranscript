@@ -3,26 +3,29 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingEnd="16dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp">
+    android:paddingStart="20dp"
+    android:paddingEnd="20dp"
+    android:paddingBottom="17dp">
 
     <TextView
         android:id="@+id/time"
-        android:layout_width="56dp"
+        android:layout_width="42dp"
         android:layout_height="wrap_content"
+        android:paddingTop="3dp"
+        android:textColor="@color/s_cyan"
         android:textSize="12sp"
-        android:alpha="0.6"
-        android:fontFamily="monospace"
-        android:paddingTop="2dp" />
+        android:fontFamily="@font/serif_regular"
+        android:fontFeatureSettings="tnum" />
 
     <TextView
         android:id="@+id/text"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textSize="15sp"
+        android:layout_marginStart="14dp"
+        android:textColor="#DBE0E2"
+        android:textSize="16sp"
+        android:lineSpacingMultiplier="1.62"
+        android:fontFamily="@font/serif_regular"
         android:textIsSelectable="true" />
-
 </LinearLayout>

@@ -1,35 +1,153 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:background="?attr/selectableItemBackground"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp">
+    android:paddingTop="14dp"
+    android:paddingBottom="14dp">
 
-    <TextView
-        android:id="@+id/title"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:maxLines="1"
-        android:ellipsize="end" />
-
-    <TextView
-        android:id="@+id/meta"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="13sp"
-        android:alpha="0.7" />
-
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textSize="12sp"
+    <FrameLayout
+        android:layout_width="40dp"
+        android:layout_height="40dp"
         android:layout_marginTop="2dp"
-        android:textColor="@color/scribe_primary" />
+        android:background="@drawable/surface_row_icon">
+
+        <ImageView
+            android:id="@+id/rowIcon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_file_text"
+            android:contentDescription="@null"
+            app:tint="@color/s_text_dim" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="14dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="@color/s_text"
+                android:textSize="17sp"
+                android:fontFamily="@font/serif_semibold"
+                android:maxLines="1"
+                android:ellipsize="end" />
+
+            <ImageView
+                android:id="@+id/renameHint"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginStart="8dp"
+                android:src="@drawable/ic_pencil"
+                android:contentDescription="@null"
+                app:tint="@color/s_cyan"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:textColor="@color/s_text_muted"
+            android:textSize="13sp"
+            android:fontFamily="@font/serif_regular" />
+
+        <!-- Exactly one of the three below is visible at a time. -->
+
+        <LinearLayout
+            android:id="@+id/chip"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:layout_marginTop="9dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="11dp"
+            android:paddingEnd="11dp"
+            android:visibility="gone">
+
+            <View
+                android:id="@+id/chipDot"
+                android:layout_width="7dp"
+                android:layout_height="7dp"
+                android:background="@drawable/mic_dot"
+                android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/chipIcon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:contentDescription="@null"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/chipText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="7dp"
+                android:textSize="12sp"
+                android:letterSpacing="0.04"
+                android:fontFamily="@font/serif_semibold" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/progressRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="9dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/rowProgress"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:max="100"
+                app:trackThickness="4dp"
+                app:trackCornerRadius="2dp"
+                app:trackColor="@color/s_divider"
+                app:indicatorColor="@color/s_cyan" />
+
+            <TextView
+                android:id="@+id/progressText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="@color/s_cyan"
+                android:textSize="12sp"
+                android:fontFamily="@font/serif_semibold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/snippet"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="9dp"
+            android:textColor="@color/s_text_faint"
+            android:textSize="13sp"
+            android:lineSpacingMultiplier="1.35"
+            android:fontFamily="@font/serif_regular"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

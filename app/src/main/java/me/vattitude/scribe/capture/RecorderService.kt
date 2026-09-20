@@ -57,7 +57,11 @@ class RecorderService : Service() {
         running = true
 
         val startedAt = System.currentTimeMillis()
-        val title = SimpleDateFormat("EEE d MMM, HH:mm", Locale.getDefault()).format(Date(startedAt))
+        // Empty, not a timestamp. The row already shows date and time on its
+        // metadata line, so a timestamp title was the same string twice and told
+        // you nothing a week later. The UI renders "Untitled meeting" until the
+        // first transcribed sentence drafts a real one.
+        val title = ""
         val dir = File(File(filesDir, "meetings"), startedAt.toString())
         val repo = Repo(this)
         meetingId = repo.createMeeting(title, startedAt, dir)
@@ -126,9 +130,27 @@ class RecorderService : Service() {
                 live?.offer(buf, n)
 
                 val elapsed = Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE)
+
+                // One AudioRecord buffer is ~2s and the meter draws one bar per
+                // published level, so publishing once per read gave half a bar a
+                // second: the strip sat mostly empty for the first few minutes and
+                // read as "barely hearing you". Split the buffer into short windows
+                // and publish each one's peak — same audio, a meter that fills at
+                // conversation speed.
+                val window = (n / METER_WINDOWS).coerceAtLeast(1)
                 var peak = 0
-                var i = 0
-                while (i < n) { val a = kotlin.math.abs(buf[i].toInt()); if (a > peak) peak = a; i += 16 }
+                var w = 0
+                while (w < n) {
+                    val end = minOf(w + window, n)
+                    var wPeak = 0
+                    var i = w
+                    while (i < end) { val a = kotlin.math.abs(buf[i].toInt()); if (a > wPeak) wPeak = a; i += 4 }
+                    if (wPeak > peak) peak = wPeak
+                    RecordingState.set(
+                        Recording(meetingId, startedAt, elapsed, wPeak / 32768f, silentMs)
+                    )
+                    w = end
+                }
                 val level = peak / 32768f
 
                 // Track silence in audio time, not wall-clock: it is the bytes on
@@ -228,6 +250,13 @@ class RecorderService : Service() {
         private const val TAG = "RecorderService"
         const val ACTION_STOP = "me.vattitude.scribe.STOP"
         private const val NOTIF_ID = 1001
+
+        /**
+         * Level samples published per AudioRecord buffer. Eight windows over a
+         * ~2s buffer is about four meter bars a second, which fills the strip in
+         * roughly half a minute without flooding the UI thread.
+         */
+        private const val METER_WINDOWS = 8
 
         fun formatElapsed(ms: Long): String {
             val s = ms / 1000

@@ -108,11 +108,33 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
                     val tail = pendingTail
                     if (tail != null && merged.isNotEmpty()) {
                         val head = merged[0]
+                        // The model sometimes opens a segment with the punctuation
+                        // that closed the previous sentence (". The lock screen…"),
+                        // so a plain space-join strands a " ." mid-transcript.
+                        val headText = head.text.trimStart()
+                        val joiner = if (headText.firstOrNull() in SENTENCE_END) "" else " "
                         merged[0] = head.copy(
                             tStartMs = tail.tStartMs,
-                            text = (tail.text.trimEnd() + " " + head.text.trimStart()).trim()
+                            text = (tail.text.trimEnd() + joiner + headText).trim()
                         )
                         pendingTail = null
+                    }
+
+                    // The model also splits *within* a segment and hands back the
+                    // closing punctuation as the start of the next line, which read
+                    // as an orphaned ". The lock screen is working." Fold any such
+                    // line back onto the one it belongs to.
+                    var j = 1
+                    while (j < merged.size) {
+                        val t = merged[j].text.trimStart()
+                        if (t.firstOrNull() in SENTENCE_END) {
+                            val prev = merged[j - 1]
+                            merged[j - 1] = prev.copy(
+                                tEndMs = merged[j].tEndMs,
+                                text = (prev.text.trimEnd() + t).trim()
+                            )
+                            merged.removeAt(j)
+                        } else j++
                     }
 
                     // Hold back a trailing unpunctuated line: it may continue.
@@ -141,8 +163,10 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             }
 
             repo.setState(meetingId, MeetingState.DONE)
+            val finalLines = repo.lines(meetingId)
+            draftTitle(repo, meetingId, finalLines)
             val done = repo.meeting(meetingId)
-            notifyDone(meetingId, done?.title ?: "Meeting", repo.lines(meetingId).size)
+            notifyDone(meetingId, done?.title?.ifBlank { "Untitled meeting" } ?: "Untitled meeting", finalLines.size)
             Result.success()
         } catch (e: Throwable) {
             Log.e(TAG, "transcription failed for meeting $meetingId", e)
@@ -155,7 +179,7 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
     }
 
     private fun endsSentence(text: String): Boolean =
-        text.trimEnd().lastOrNull()?.let { it == '.' || it == '?' || it == '!' } ?: false
+        text.trimEnd().lastOrNull() in SENTENCE_END
 
     /** Reads a raw little-endian PCM16 segment into the -1..1 floats the model wants. */
     private fun readPcm(file: File): FloatArray {
@@ -223,16 +247,35 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         NotificationManagerCompat.from(applicationContext).cancel(NOTIF_ID)
     }
 
+    /**
+     * Give an untitled meeting a name from its first sentence. A meeting is only
+     * ever untitled because the user skipped naming it, so anything here beats
+     * the empty string — but never overwrite a title they chose themselves.
+     */
+    private fun draftTitle(repo: Repo, meetingId: Long, lines: List<Line>) {
+        if (repo.meeting(meetingId)?.title?.isNotBlank() == true) return
+        val first = lines.firstOrNull { it.text.isNotBlank() } ?: return
+        val words = first.text.trim().split(Regex("\\s+"))
+        val draft = words.take(TITLE_WORDS).joinToString(" ").trimEnd(',', ';', ':', '.', '!', '?')
+        if (draft.isBlank()) return
+        repo.rename(meetingId, if (words.size > TITLE_WORDS) "$draft…" else draft)
+    }
+
     private fun doneNotifId(meetingId: Long): Int = 2000 + (meetingId % 1000).toInt()
 
     companion object {
         private const val TAG = "TranscribeWorker"
+        /** Characters that close a sentence, for both holding back and joining. */
+        private val SENTENCE_END = setOf('.', '?', '!')
         private const val NOTIF_ID = 1002
         const val KEY_MEETING_ID = "meetingId"
 
         /** One tag across every transcribe job, so the UI can watch them all at once. */
         const val WORK_TAG = "transcribe"
         const val BREADCRUMB_LOADING = "Loading speech model\u2026"
+
+        /** Long enough to be recognisable, short enough for one line in the list. */
+        private const val TITLE_WORDS = 7
 
         /**
          * No constraints. An earlier version required batteryNotLow, which parked
