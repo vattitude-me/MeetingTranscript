@@ -73,6 +73,9 @@ class MainActivity : AppCompatActivity() {
 
         b.record.setOnClickListener { onRecordTapped() }
         b.modelAction.setOnClickListener { downloadModel() }
+        b.settings.setOnClickListener {
+            startActivity(Intent(this, SettingsActivity::class.java))
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
