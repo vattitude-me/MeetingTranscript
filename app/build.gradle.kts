@@ -13,12 +13,39 @@ android {
         applicationId = "me.vattitude.scribe"
         minSdk = 29
         targetSdk = 35
-        versionCode = 11
-        versionName = "0.6.0"
+        versionCode = 12
+        versionName = "0.6.1"
 
         // Pixel 9 is arm64. Restricting ABIs keeps the APK ~4x smaller, since the
         // sherpa-onnx AAR ships a full onnxruntime .so per architecture.
         ndk { abiFilters += listOf("arm64-v8a") }
+    }
+
+    // The APK filename is the one filename a user actually sees — it is what
+    // lands in Downloads when they fetch a release. Gradle's default,
+    // "app-release.apk", says nothing and collides with every other Android
+    // project's default. Name it after the app and stamp the version in, so a
+    // downloaded file is still identifiable months later and two versions never
+    // silently overwrite each other.
+    //
+    // Named for the app, not the package: users read this, and the package is
+    // still "scribe" for upgrade-compatibility reasons they never see.
+    base.archivesName = "meeting-transcript"
+
+    applicationVariants.all {
+        outputs.all {
+            // "meeting-transcript-0.6.1.apk", and "…-0.6.1-debug.apk" for debug.
+            // The build type is only worth spelling out when it is not the one
+            // people download, so release carries no suffix.
+            //
+            // Built from defaultConfig.versionName rather than the variant's,
+            // because the debug variant's already ends in "-debug" and would
+            // otherwise stutter into "0.6.1-debug-debug.apk".
+            val base = defaultConfig.versionName
+            val suffix = if (buildType.name == "release") "" else "-${buildType.name}"
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                .outputFileName = "meeting-transcript-$base$suffix.apk"
+        }
     }
 
 
