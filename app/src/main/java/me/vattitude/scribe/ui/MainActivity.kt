@@ -50,10 +50,14 @@ class MainActivity : AppCompatActivity() {
 
         adapter = MeetingAdapter(
             onOpen = { m ->
-                startActivity(
-                    Intent(this, MeetingDetailActivity::class.java)
-                        .putExtra(MeetingDetailActivity.EXTRA_ID, m.id)
-                )
+                if (m.state == MeetingState.RECORDED || m.state == MeetingState.FAILED) {
+                    retry(m.id)
+                } else {
+                    startActivity(
+                        Intent(this, MeetingDetailActivity::class.java)
+                            .putExtra(MeetingDetailActivity.EXTRA_ID, m.id)
+                    )
+                }
             },
             onLongPress = { m -> confirmDelete(m.id, m.title) }
         )
@@ -91,6 +95,18 @@ class MainActivity : AppCompatActivity() {
             val list = withContext(Dispatchers.IO) { repo.meetings() }
             adapter.submit(list)
             b.empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+
+            // Nothing is transcribing right now (we are the only thing that starts
+            // it, and a live job would have moved the row on). So a row still stuck
+            // on the load breadcrumb means the process died inside ONNX Runtime.
+            withContext(Dispatchers.IO) {
+                list.filter {
+                    it.state == MeetingState.TRANSCRIBING &&
+                        it.error == TranscribeWorker.BREADCRUMB_LOADING
+                }.forEach {
+                    repo.setState(it.id, MeetingState.FAILED, "Ran out of memory loading the model")
+                }
+            }
 
             // A meeting left "recorded" was waiting on the model. Now that it's
             // here, pick it back up without making the user hunt for a button.
@@ -169,6 +185,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleRecording() {
         if (RecordingState.isRecording) RecorderService.stop(this) else RecorderService.start(this)
+    }
+
+    /** Explicit "do it now", so transcription never depends on the scheduler's mood. */
+    private fun retry(id: Long) {
+        if (!ModelManager.isReady(this)) {
+            Snackbar.make(b.root, "Download the speech model first", Snackbar.LENGTH_LONG).show()
+            return
+        }
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                repo.setState(id, MeetingState.RECORDED)
+                repo.setProgress(id, 0, null)
+            }
+            TranscribeWorker.enqueue(this@MainActivity, id)
+            Snackbar.make(b.root, "Transcribing\u2026", Snackbar.LENGTH_SHORT).show()
+            refresh()
+        }
     }
 
     private fun confirmDelete(id: Long, title: String) {

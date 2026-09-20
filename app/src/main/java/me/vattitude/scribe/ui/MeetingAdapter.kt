@@ -37,15 +37,16 @@ class MeetingAdapter(
             append(dateFmt.format(Date(m.startedAt)))
             if (m.durationMs > 0) append("  ·  ").append(Exporters.timestamp(m.durationMs))
         }
-        holder.b.status.text = when (m.state) {
+        // An error explains the state better than the state name does, whichever
+        // state we are in — that is the whole point of recording one.
+        holder.b.status.text = m.error ?: when (m.state) {
             MeetingState.RECORDING -> "Recording"
-            MeetingState.RECORDED ->
-                if (m.error != null) m.error else "Waiting to transcribe"
+            MeetingState.RECORDED -> "Queued \u2014 tap to transcribe now"
             MeetingState.TRANSCRIBING ->
                 if (m.segmentCount > 0) "Transcribing ${m.segmentsDone}/${m.segmentCount}"
                 else "Transcribing"
             MeetingState.DONE -> "Transcript ready"
-            else -> m.error ?: "Failed"
+            else -> "Failed"
         }
         holder.itemView.setOnClickListener { onOpen(m) }
         holder.itemView.setOnLongClickListener { onLongPress(m); true }

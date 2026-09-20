@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.work.CoroutineWorker
-import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -60,7 +59,12 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
 
         var engine: AsrEngine? = null
         try {
+            // Loading the model crosses into ONNX Runtime. A native OOM there aborts
+            // the process outright and no catch below will ever see it, so leave a
+            // breadcrumb on disk first: if we never clear it, the next launch knows.
+            repo.setState(meetingId, MeetingState.TRANSCRIBING, BREADCRUMB_LOADING)
             engine = ParakeetEngine.create(applicationContext)
+            repo.setState(meetingId, MeetingState.TRANSCRIBING)
             var idx = repo.nextLineIdx(meetingId)
 
             // Resume: skip whatever a previous run already committed.
@@ -151,16 +155,18 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         private const val TAG = "TranscribeWorker"
         private const val NOTIF_ID = 1002
         const val KEY_MEETING_ID = "meetingId"
+        const val BREADCRUMB_LOADING = "Loading speech model\u2026"
 
-        fun enqueue(context: Context, meetingId: Long, requireCharging: Boolean = false) {
+        /**
+         * No constraints. An earlier version required batteryNotLow, which parked
+         * the job in JobScheduler indefinitely below 15% — indistinguishable, in the
+         * UI, from "queued normally". Transcription is work the user explicitly asked
+         * for by stopping a recording; deferring it silently is worse than the battery
+         * it saves. The user can wait for a charger if they want to.
+         */
+        fun enqueue(context: Context, meetingId: Long) {
             val req = OneTimeWorkRequestBuilder<TranscribeWorker>()
                 .setInputData(Data.Builder().putLong(KEY_MEETING_ID, meetingId).build())
-                .setConstraints(
-                    Constraints.Builder()
-                        .setRequiresCharging(requireCharging)
-                        .setRequiresBatteryNotLow(true)
-                        .build()
-                )
                 .build()
             WorkManager.getInstance(context)
                 .enqueueUniqueWork("transcribe-$meetingId", ExistingWorkPolicy.KEEP, req)
