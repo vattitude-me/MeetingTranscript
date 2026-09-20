@@ -1,7 +1,24 @@
 # On-Device Meeting Notes — Project Plan
 
-**Status:** planning draft, rev 3 — 2026-09-20
+**Status:** initial planning draft, rev 3 — 2026-09-20. Superseded in part by what
+shipped; see the note below before trusting any specific claim in here.
 **Shape:** two stages, shipped separately.
+
+> **This is the analysis that preceded the build, not a description of it.**
+> Treat it as a record of the reasoning, not current fact. The biggest
+> divergence: what shipped is a **native Android (Kotlin) app, not React
+> Native**, and there is **no iOS build** — §1.1 and the iOS-specific sections
+> below (§1.4's iOS half, §2, §5.2, §8's iOS half, §12) describe a path that
+> was not taken. On the Android side, the build is generally *ahead* of this
+> plan: §3.1's "both passes" live+accurate pipeline, VAD-less but disk-coupled
+> recording, Material 3 UI, and export are all shipped. Still open from here:
+> `:asr` process isolation (§4.2 rule 3 — not implemented, see the README's
+> Known Limits) and diarization (§5's Phase 3). §​6's export formats have since
+> all shipped — markdown, srt, vtt and prompt-ready — along with whole-library
+> backup and restore, which this plan never anticipated. The iOS question in
+> §14 is now answered: **the second platform is macOS, not iOS**, because iOS
+> cannot capture another app's audio. See [MACOS.md](MACOS.md).
+> See [README.md](../README.md) for what's actually true of the app today.
 
 - **Stage 1 (this project, v1):** phone sits on the desk beside the work laptop, one-tap widget starts it, records with the screen off for the length of a meeting, and produces a **verbatim, timestamped, line-addressable English transcript** on device. This is the whole deliverable.
 - **Stage 2 (later / external):** summary, action points, outcomes. Handed to an external agent or model via a clean export. Not built in v1; the interface for it is.
@@ -23,6 +40,9 @@ Your two constraints reshaped the plan more than rev 2's did:
 ## 1. The decisions
 
 ### 1.1 Native, React Native (Expo, prebuild / dev-client)
+
+> **Not what shipped.** The actual app is plain native Kotlin, Android only —
+> no Expo, no React Native, no iOS. See the top-of-file note.
 
 PWA remains impossible: no home-screen widget for web apps on either OS, and iOS Safari suspends JS and tears down the mic the moment you background or lock — the recording dies mid-meeting. Since "screen off, in the background" is a hard requirement, this isn't close.
 
@@ -174,12 +194,12 @@ Two iOS entitlements exist if you ever need more — Increased Memory Limit and 
 
 1. **The recorder writes rolling ~30 s segments straight to disk.** Any crash — OOM, bug, battery death — loses at most 30 seconds.
 2. **The transcriber reads from disk and never from the recorder's memory.** They share a directory, not a buffer.
-3. **On Android, run ASR in a separate process** (`android:process=":asr"`). An ASR OOM kills that process only; the recording foreground service keeps going. This is free and it's the single best reliability move available to you.
+3. **On Android, run ASR in a separate process** (`android:process=":asr"`). An ASR OOM kills that process only; the recording foreground service keeps going. This is free and it's the single best reliability move available to you. — ⚠️ **Not implemented.** `TranscribeWorker` runs in the main process today. Rules 1, 2 and 9 still hold, so an ASR OOM costs a retry rather than audio; this rule remains the main unclaimed reliability win.
 4. **On iOS you can't multi-process**, so the mitigation is that ASR runs *after* recording has finished (§3). An ASR crash costs you a retry, never audio.
 5. **Never load a whole meeting's audio into memory.** Stream segment by segment. A 2-hour meeting at 16 kHz mono is ~230 MB of PCM — enough to matter.
 6. **Never hold the whole transcript in a non-virtualised list.** 2 hours ≈ 1,500–2,500 lines. Use a virtualised list from day one.
 7. **Keep the ASR context warm across segments**, but tear it down when the job finishes. Don't leave 400 MB resident while the user browses old notes.
-8. **Check headroom at runtime before starting a job** — `os_proc_available_memory()` on iOS, `ActivityManager.MemoryInfo` + `onTrimMemory` on Android. If headroom is thin, drop to the smaller model tier for that job and say so in the UI rather than crashing.
+8. **Check headroom at runtime before starting a job** — `os_proc_available_memory()` on iOS, `ActivityManager.MemoryInfo` + `onTrimMemory` on Android. If headroom is thin, drop to the smaller model tier for that job and say so in the UI rather than crashing. — ⚠️ **Not implemented**, and there is no smaller tier to fall back to: the live model can't do the accurate pass.
 9. **Resumable jobs.** The ASR job records which segment it last completed. A crash mid-transcription resumes; it doesn't restart an hour of work.
 
 ---
@@ -234,42 +254,47 @@ Parakeet and Whisper punctuate and segment differently. Rather than fight it, re
 
 Design this carefully; it's the product boundary and the thing an external agent consumes.
 
-**Canonical JSON:**
+**Canonical JSON — as actually emitted** by `export/Exporters.kt` (`schema:
+scribe.transcript.v1`). This supersedes the proposal that was here: the shipped
+form is flatter, snake_case, carries an explicit schema version, and uses epoch
+millis rather than ISO-8601.
 
 ```jsonc
 {
-  "meeting": {
-    "id": "m_01J...",
-    "title": "Weekly sync",
-    "startedAt": "2026-09-20T10:00:04Z",
-    "endedAt":   "2026-09-20T10:47:31Z",
-    "durationMs": 2847000,
-    "asrModelId": "parakeet-tdt-0.6b-v3-int8",
-    "device": "Pixel 9",
-    "language": "en"
-  },
+  "schema": "scribe.transcript.v1",
+  "title": "Weekly sync",
+  "started_at": 1758362404000,          // epoch ms, not ISO-8601
+  "duration_ms": 2847000,
+  "language": "en",
+  "asr_model": "parakeet-tdt-0.6b-v3-int8",
   "lines": [
-    { "id": 1, "tStartMs": 0,    "tEndMs": 3120, "text": "Okay, let's get started.", "confidence": 0.94 },
-    { "id": 2, "tStartMs": 3120, "tEndMs": 9840, "text": "...",                      "confidence": 0.88 }
+    {"i": 0, "t_start_ms": 0,    "t_end_ms": 3120, "text": "Okay, let's get started.", "confidence": 0.940},
+    {"i": 1, "t_start_ms": 3120, "t_end_ms": 9840, "text": "...",                      "confidence": 0.880}
   ]
 }
 ```
 
-**Also export:**
+Dropped from the proposal, deliberately: `meeting.id` (the file is the unit of
+handoff; nothing outside the phone needs the row id), `endedAt` (derivable from
+`started_at + duration_ms`) and `device` (never used, and it's a fingerprint you
+would be handing to whatever consumes the transcript).
 
-- **Markdown** — `[00:12] Okay, let's get started.` Human-readable, pasteable anywhere.
-- **Plain text** — no timestamps, for maximum context efficiency when feeding a model.
-- **`.srt` / `.vtt`** — timestamped, for anything that wants subtitles.
-- **Prompt-ready** — transcript plus a canned instruction block ("summarise, extract decisions and action items with owners, cite line numbers"). Makes stage 2 a single paste. This is the highest-leverage small feature in the app.
+**Also export:** ✅ all shipped, behind *Export as…* in the meeting overflow menu.
 
-**Line ids are the backbone.** Sharing, search, editing and — when stage 2 arrives — citation all hang off them. Get them stable and monotonic now.
+- **Markdown** — ✅ `Exporters.markdown`.
+- **`.srt` / `.vtt`** — ✅ `Exporters.srt` / `Exporters.vtt`.
+- **Prompt-ready** — ✅ `Exporters.promptReady`. This was right: it is the
+  transcript with the summarise-and-cite instructions already attached, and it
+  is the one place the citation contract is actually stated.
+
+**Line ids are the backbone.** Sharing, search, editing and — when stage 2 arrives — citation all hang off them. Shipped as `Line.idx`, stable and monotonic per meeting, exported as `i`.
 
 ### Sharing (in-app)
 
-- Long-press a line → copy / share that line with its timestamp.
-- Drag-select a range → share as a quoted block.
-- Share the whole transcript in any format above, via the native share sheet.
-- **No server, no account, no upload.**
+- Tap the share icon on a line → share that line with its timestamp. ✅ (tap, not long-press)
+- Drag-select a range → share as a quoted block. — not built.
+- Share the whole transcript as `.txt` or `.json`, via the native share sheet. ✅
+- **No server, no account, no upload.** ✅
 
 ---
 
@@ -368,10 +393,14 @@ Narrower than rev 2's, because the scope is narrower. Throwaway RN app, no polis
 
 ## 10. Phases
 
-- **Phase 1 — MVP.** Widget/in-app record → background recording with screen off → stop → ASR job → transcript view → line-level share → export in all §6 formats → list of past meetings. **This is the whole of stage 1.** Ship it and use it for a month before deciding anything else.
-- **Phase 2 — Polish where it actually hurts.** Setup-test flow, headphone detection, job recovery UI, model tier selection, audio-retention settings, full-text search across meetings.
-- **Phase 3 — Optional depth.** Speaker diarization ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), pyannote-segmentation-3.0 + CAM++), live transcription mode, transcript editing, calendar read for auto-titles.
-- **Phase 4 — Stage 2, if you still want it in-app.** See appendix.
+Status as of v0.5.2 (Android only — none of this exists on iOS).
+
+- **Phase 1 — MVP. ✅ Shipped.** Widget/in-app record → background recording with screen off → stop → ASR job → transcript view → line-level share → export → list of past meetings. **This is the whole of stage 1.** Shipped at v0.1; export covers `.txt` and `.json`, not the full §6 format list.
+- **Phase 2 — Polish where it actually hurts.** Mostly done: full-text search across meetings ✅, meeting rename ✅, job recovery / never-fail-silently ✅, level meter ✅, audio-retention settings ✅ (Settings → Storage and privacy). Not built: setup-test flow, headphone detection, model tier selection.
+- **Phase 3 — Optional depth.** Live transcription mode ✅ — shipped early and reframed as a preview rather than a mode (§3.1). Not built: speaker diarization ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), pyannote-segmentation-3.0 + CAM++), transcript editing, calendar read for auto-titles.
+- **Phase 4 — Stage 2, if you still want it in-app.** Not started, and still out of scope. See appendix.
+
+**Carried over and still open:** `:asr` process isolation (§4.2 rule 3), the remaining §6 export formats, and the Phase 0 measurements (§9) — the accuracy and memory numbers in §5 and §4.1 are still the model authors' and estimates respectively, never verified on the actual Pixel 9.
 
 ---
 
@@ -388,56 +417,79 @@ Practically: persistent visible recording indicator (lean on the OS mic indicato
 
 ## 12. Repo layout
 
+> **Superseded.** This section proposed an Expo monorepo (`/apps/mobile`,
+> `/packages/core`, per-platform `/ios` and `/android` folders, TypeScript
+> throughout). None of it survived the switch to native Kotlin. What's actually
+> on disk:
+
 ```
-/apps/mobile            # Expo (prebuild / dev client)
-  /src
-    /capture            # recorder, 16k PCM segment writer, session state machine, level meter
-    /asr
-      engine.ts         # AsrEngine interface
-      parakeet.ts       # Android — sherpa-onnx or whisper.rn GGUF
-      whisper.ts        # iOS — whisper.rn + Core ML encoder
-      job.ts            # queue, resumability, headroom checks
-      vad.ts            # Silero gating + chunk boundaries
-    /models             # registry, device-tier selection, download manager
-    /store              # sqlite schema + queries
-    /export             # json · md · txt · srt · vtt · prompt-ready
-    /summarize          # STUB ONLY — Summarizer interface, no implementation
-    /ui
-  /ios                  # widget ext, App Intents, Live Activity (Swift)
-  /android              # widget, FGS (separate :asr process), QS tile (Kotlin)
-/packages/core          # types + pure logic, shared with any future client
+/app/src/main/java/me/vattitude/scribe/
+  ScribeApp.kt              # Application; notification channels, WorkManager setup
+  /widget
+    ScribeWidget.kt         # 1x1 AppWidgetProvider, start/stop + elapsed
+    RecordTrampolineActivity.kt  # transparent activity — the FGS-from-background exemption (§8)
+  /capture
+    RecorderService.kt      # foreground service, type=microphone
+    SegmentWriter.kt        # 16 kHz mono PCM16 → rolling 30 s disk segments
+    LiveTranscriber.kt      # bounded queue off the same buffers, own thread (§3.1)
+    LiveTranscript.kt       # in-memory preview state
+    RecordingState.kt       # session state machine
+    Audio.kt                # format constants, PCM16 → float
+  /asr
+    AsrEngine.kt            # engine interface + AsrLine
+    ParakeetEngine.kt       # accurate, offline — Parakeet TDT 0.6B v3 int8
+    StreamingEngine.kt      # live preview — 20M streaming zipformer int8
+    ModelManager.kt         # two-model registry, download, tar.bz2 extract, prune
+    TranscribeWorker.kt     # WorkManager job, resumable segment by segment
+  /store
+    Db.kt                   # hand-written SQLiteOpenHelper — meetings + lines
+  /export
+    Exporters.kt            # txt · md · json · srt · vtt · prompt-ready
+    Backup.kt               # scribe.backup.v1 — whole-library zip, export + restore
+  /ui
+    MainActivity.kt         # meeting list, search, model download
+    RecordingActivity.kt    # level meter + live preview
+    MeetingDetailActivity.kt, LineAdapter.kt, MeetingAdapter.kt, LevelMeterView.kt
+/scripts/setup.sh           # fetches the 48 MB sherpa-onnx AAR into app/libs
 /docs
-  DECISIONS.md          # ADRs — start with §1 and §3
-  BENCHMARKS.md         # Phase 0 numbers, per device, per model
-  HANDOFF.md            # the §6 artifact spec — stage 2's contract
+  PLAN.md                   # this file
+  /design                   # Claude Design handoff bundle — Material 3 dark theme
 ```
 
-Name candidates: *Deskmate*, *Roomnote*, *Tabletop*, *Offrecord*. Check store/trademark collisions first.
+There is no `/summarize` stub: the Stage 2 boundary is the `.json` export
+(§6) and nothing else, which turned out to be the cleaner version of the same
+idea. `DECISIONS.md`, `BENCHMARKS.md` and `HANDOFF.md` were never written —
+§6 in this file is still the only spec of the handoff artifact, and Phase 0's
+numbers (§9) were never formally recorded.
+
+Name candidates: *Deskmate*, *Roomnote*, *Tabletop*, *Offrecord*. Check store/trademark collisions first. **Resolved: shipped as Scribe.**
 
 ---
 
 ## 13. Risk register
 
-| Risk | Severity | Mitigation |
-|---|---|---|
-| **Headphones on → only your half is recorded** | **High** — likeliest real failure | Single-voice detection + warning; setup-test flow; explicit onboarding |
-| Remote-participant WER through laptop speakers too poor to quote | **High** — kill criterion | Phase 0 test #2; best model the budget allows; placement guidance; external mic later |
-| iOS OOM on a 4 GB iPhone | Medium — *was* high before §4 | 1 GB peak budget, >1 GB headroom, runtime headroom check, `base.en` fallback tier |
-| OEM battery management stops the Android service | Medium | Pixel is well-behaved; still test; rolling disk segments mean a kill isn't fatal |
-| ASR job fails on a 2-hour meeting | Medium | Resumable jobs, separate process on Android, segment-level retry |
-| Transcripts differ between the two devices | Low | Record `asrModelId`; standardise on `small.en` if it ever matters |
-| Stage-2 export leaks meeting content | Medium | §1.5 and §11 — a deliberate decision, plain-text export so you can read exactly what you're sending |
-| Employer policy on recording | Medium | §11 — check before building the habit |
+Mitigation column says what was planned; status says what's true at v0.5.2.
+
+| Risk | Severity | Mitigation | Status |
+|---|---|---|---|
+| **Headphones on → only your half is recorded** | **High** — likeliest real failure | Single-voice detection + warning; setup-test flow; explicit onboarding | ⚠️ **Open on Android.** None of the three built; documented in the README only. The live preview partly covers it by accident — a monologue preview is visible while you can still fix the setup. A Mac app removes the risk rather than mitigating it, by capturing system audio ([MACOS.md](MACOS.md)) |
+| Remote-participant WER through laptop speakers too poor to quote | **High** — kill criterion | Phase 0 test #2; best model the budget allows; placement guidance; external mic later | ⚠️ **Unmeasured.** Phase 0 never formally run; the kill criterion was never tested. Best model shipped |
+| iOS OOM on a 4 GB iPhone | Medium — *was* high before §4 | 1 GB peak budget, >1 GB headroom, runtime headroom check, `base.en` fallback tier | N/A — no iOS build |
+| OEM battery management stops the Android service | Medium | Pixel is well-behaved; still test; rolling disk segments mean a kill isn't fatal | ✅ Segments shipped; battery-level gating removed in `6d480d5` so a low battery no longer blocks transcription |
+| ASR job fails on a 2-hour meeting | Medium | Resumable jobs, separate process on Android, segment-level retry | ◐ Resumable + segment-level retry shipped; **separate process not built** (§4.2 rule 3) |
+| Transcripts differ between the two devices | Low | Record `asrModelId`; standardise on `small.en` if it ever matters | ✅ `asr_model` recorded and exported. Moot while Android-only — though live vs accurate now differ *within* one device, which is why the accurate pass overwrites |
+| Stage-2 export leaks meeting content | Medium | §1.5 and §11 — a deliberate decision, plain-text export so you can read exactly what you're sending | ✅ `.txt` and `.json` are both human-readable before you send them |
+| Employer policy on recording | Medium | §11 — check before building the habit | ⚠️ README covers it; no in-app explainer or announce-recording helper |
 
 ---
 
 ## 14. Open questions
 
-1. **Which iPhone?** iOS 17 spans iPhone XS (4 GB) to 15 (6 GB). It changes the memory ceiling by ~50 % and may change §5.2's pick. Cheapest question to answer, biggest effect on the plan.
-2. **Android first?** Pixel 9 gives true one-tap capture, the better model, no App Store review, and easy sideloading — and you have that release muscle from Rungs. iOS's widget restriction makes its capture ergonomics strictly worse. Suggest building Android first and porting.
-3. **Typical meeting length?** 30 minutes and 2 hours are different job-resumability problems.
-4. **Keep audio for playback-while-reading** (tap a line → hear it), or delete after transcription? Nice feature, real storage and risk cost.
-5. **Which external agent for stage 2?** If it's something with a file API, the export can target it directly instead of via the share sheet — a small feature that removes all the friction.
+1. ~~**Which iPhone?**~~ ~~**Moot for now.**~~ **Answered: the second platform is macOS.** iOS is off the roadmap — no app can capture another app's audio there, so an iOS Scribe could only ever record the room. macOS captures system audio directly, which sidesteps §1.2's entire acoustic problem and §13's kill criterion. Designed in [MACOS.md](MACOS.md), with a working capture spike in [`mac/`](../mac) that already writes the same 16 kHz PCM segments this app records.
+2. ~~**Android first?**~~ **Answered: yes.** Android was built first and is the only platform shipped. The port never started.
+3. **Typical meeting length?** Still open. Resumability is built either way, but it's unmeasured against a 2-hour job.
+4. ~~**Keep audio for playback-while-reading**, or delete after transcription?~~ **Answered: delete, by default.** Settings now carries a *Delete audio after transcribing* switch, defaulting ON as §11 always said it should, plus a *Clear recorded audio* action that keeps transcripts. Deletion happens in `TranscribeWorker` only on a successful pass, so a failure keeps its audio to retry from. Playback-while-reading was not built and is now mutually exclusive with the default — if it is ever wanted, it is for people who turn the switch off.
+5. **Which external agent for stage 2?** Still open. The `.json` export (§6) remains the only boundary.
 
 ---
 
