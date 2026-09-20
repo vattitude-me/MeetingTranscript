@@ -23,26 +23,51 @@ object ModelManager {
     private const val TAG = "ModelManager"
 
     /**
-     * Streaming zipformer, 20M params, int8. Chosen over the far more accurate
-     * Parakeet TDT because it is the only one of the two that can decode while the
-     * meeting is still happening — and because 128 MB of weights, not 600 MB, is
-     * what you want resident for 45 minutes of continuous inference.
+     * Two models, because no single on-device model does both jobs well.
+     *
+     * [LIVE] streams: it can decode while people are still talking, which is the
+     * point of the live view. It is 20M parameters and it shows — it commits words
+     * before hearing the end of the sentence, and it is wrong more often.
+     *
+     * [ACCURATE] cannot stream at all, but it is 600M parameters and reads the
+     * whole utterance before deciding. It produces the transcript you keep.
+     *
+     * The live pass is scaffolding; the accurate pass is the product.
      */
-    const val MODEL_ID = "streaming-zipformer-en-20M-int8"
-    private const val ARCHIVE = "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2"
+    enum class Model(
+        val id: String,
+        val archive: String,
+        val approxBytes: Long,
+        val streaming: Boolean
+    ) {
+        LIVE(
+            "streaming-zipformer-en-20M-int8",
+            "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2",
+            127_887_156L,
+            true
+        ),
+        ACCURATE(
+            "parakeet-tdt-0.6b-v3-int8",
+            "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
+            487_170_055L,
+            false
+        );
+    }
+
     private const val URL_BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
 
     data class Paths(val encoder: File, val decoder: File, val joiner: File, val tokens: File)
 
-    fun modelDir(context: Context): File = File(context.filesDir, "models/$MODEL_ID")
+    fun modelDir(context: Context, model: Model): File =
+        File(context.filesDir, "models/${model.id}")
 
     /**
      * Locates the model files by shape rather than by exact name — the upstream
      * bundles have varied (encoder.onnx vs encoder.int8.onnx), and guessing wrong
      * would fail at inference time instead of here.
      */
-    fun resolve(context: Context): Paths? {
-        val dir = modelDir(context)
+    fun resolve(context: Context, model: Model): Paths? {
+        val dir = modelDir(context, model)
         if (!dir.isDirectory) return null
         val onnx = dir.walkTopDown().filter { it.isFile && it.name.endsWith(".onnx") }.toList()
         val tokens = dir.walkTopDown().firstOrNull { it.isFile && it.name == "tokens.txt" } ?: return null
@@ -59,11 +84,19 @@ object ModelManager {
         val encoder = pick("encoder") ?: return null
         val decoder = pick("decoder") ?: return null
         val joiner = pick("joiner") ?: return null
-        Log.i(TAG, "model: ${encoder.name}, ${decoder.name}, ${joiner.name}")
+        Log.i(TAG, "${model.id}: ${encoder.name}, ${decoder.name}, ${joiner.name}")
         return Paths(encoder, decoder, joiner, tokens)
     }
 
-    fun isReady(context: Context): Boolean = resolve(context) != null
+    fun isReady(context: Context, model: Model): Boolean = resolve(context, model) != null
+
+    /** True when at least one model is present, i.e. we can transcribe somehow. */
+    fun anyReady(context: Context): Boolean =
+        Model.entries.any { isReady(context, it) }
+
+    /** The models still to download, in the order they should be fetched. */
+    fun missing(context: Context): List<Model> =
+        Model.entries.filterNot { isReady(context, it) }
 
     /**
      * Removes model bundles we no longer use. Changing MODEL_ID would otherwise
@@ -74,7 +107,8 @@ object ModelManager {
         val root = File(context.filesDir, "models")
         if (!root.isDirectory) return
         root.listFiles()?.forEach { child ->
-            if (child.isDirectory && child.name != MODEL_ID) {
+            val known = Model.entries.map { it.id }.toSet()
+            if (child.isDirectory && child.name !in known && !child.name.startsWith(".staging-")) {
                 val freed = child.walkTopDown().filter { it.isFile }.sumOf { it.length() }
                 if (child.deleteRecursively()) {
                     Log.i(TAG, "pruned ${child.name}, freed ${freed / 1_000_000} MB")
@@ -88,13 +122,17 @@ object ModelManager {
      * temp directory and only swaps it in once the archive is fully extracted,
      * so an interrupted download never leaves a half-model that looks ready.
      */
-    fun download(context: Context, onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit) {
-        val target = modelDir(context)
-        val staging = File(context.filesDir, "models/.staging-$MODEL_ID")
+    fun download(
+        context: Context,
+        model: Model,
+        onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
+    ) {
+        val target = modelDir(context, model)
+        val staging = File(context.filesDir, "models/.staging-${model.id}")
         staging.deleteRecursively()
         staging.mkdirs()
 
-        val conn = (URL(URL_BASE + ARCHIVE).openConnection() as HttpURLConnection).apply {
+        val conn = (URL(URL_BASE + model.archive).openConnection() as HttpURLConnection).apply {
             connectTimeout = 30_000
             readTimeout = 60_000
             instanceFollowRedirects = true
@@ -133,13 +171,15 @@ object ModelManager {
             staging.copyRecursively(target, overwrite = true)
             staging.deleteRecursively()
         }
-        Log.i(TAG, "model ready at $target (${target.listFiles()?.size ?: 0} files)")
+        Log.i(TAG, "${model.id} ready at $target (${target.listFiles()?.size ?: 0} files)")
     }
 
     fun delete(context: Context) {
-        modelDir(context).deleteRecursively()
+        Model.entries.forEach { modelDir(context, it).deleteRecursively() }
     }
 
     fun sizeOnDisk(context: Context): Long =
-        modelDir(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        Model.entries.sumOf { model ->
+            modelDir(context, model).walkTopDown().filter { it.isFile }.sumOf { it.length() }
+        }
 }

@@ -41,8 +41,9 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         val repo = Repo(applicationContext)
         val meeting = repo.meeting(meetingId) ?: return@withContext Result.failure()
 
-        if (!ModelManager.isReady(applicationContext)) {
-            // Not an error — the user simply hasn't downloaded the model yet.
+        if (!ModelManager.isReady(applicationContext, ModelManager.Model.ACCURATE)) {
+            // Not an error — the user simply hasn't downloaded the model yet. Any
+            // live lines already on the meeting stay exactly as they are.
             repo.setState(meetingId, MeetingState.RECORDED, "Speech model not downloaded")
             return@withContext Result.success()
         }
@@ -65,6 +66,12 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             repo.setState(meetingId, MeetingState.TRANSCRIBING, BREADCRUMB_LOADING)
             engine = ParakeetEngine.create(applicationContext)
             repo.setState(meetingId, MeetingState.TRANSCRIBING)
+
+            // The live pass may have left a rough transcript behind. Drop it now
+            // that the model it will be replaced by has actually loaded — clearing
+            // any earlier would leave the meeting blank if loading then failed.
+            // Only on a fresh run: a resumed run is extending its own output.
+            if (meeting.segmentsDone == 0) repo.clearLines(meetingId)
             var idx = repo.nextLineIdx(meetingId)
 
             // Resume: skip whatever a previous run already committed.

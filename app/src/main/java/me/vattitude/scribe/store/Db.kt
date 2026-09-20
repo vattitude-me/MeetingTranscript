@@ -170,6 +170,14 @@ class Repo(context: Context) {
         }
     }
 
+    /**
+     * Drops every line of a meeting, keeping the audio and the meeting row.
+     * Used when the accurate pass is about to replace the rough live transcript.
+     */
+    fun clearLines(meetingId: Long) {
+        db.writableDatabase.delete("lines", "meeting_id=?", arrayOf(meetingId.toString()))
+    }
+
     fun nextLineIdx(meetingId: Long): Int =
         db.readableDatabase.rawQuery(
             "SELECT COALESCE(MAX(idx), -1) + 1 FROM lines WHERE meeting_id=?",

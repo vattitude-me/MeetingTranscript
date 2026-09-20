@@ -19,7 +19,7 @@ class ParakeetEngine private constructor(
     private val recognizer: OfflineRecognizer
 ) : AsrEngine {
 
-    override val modelId: String = ModelManager.MODEL_ID
+    override val modelId: String = ModelManager.Model.ACCURATE.id
 
     override fun transcribe(samples: FloatArray, offsetMs: Long): List<AsrLine> {
         if (samples.isEmpty()) return emptyList()
@@ -44,8 +44,8 @@ class ParakeetEngine private constructor(
         private const val LINE_BREAK_GAP_MS = 700L
 
         fun create(context: Context, threads: Int = 4): ParakeetEngine {
-            val p = ModelManager.resolve(context)
-                ?: throw IllegalStateException("Speech model not downloaded yet")
+            val p = ModelManager.resolve(context, ModelManager.Model.ACCURATE)
+                ?: throw IllegalStateException("Accurate speech model not downloaded yet")
 
             val config = OfflineRecognizerConfig(
                 featConfig = FeatureConfig(sampleRate = Audio.SAMPLE_RATE, featureDim = 80),

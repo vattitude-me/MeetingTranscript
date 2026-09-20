@@ -118,6 +118,37 @@ transcript ready →  notification. Read, share, export.
 
 **Corollary:** the recorder and the transcriber are decoupled *by the disk*. The recorder's only job is bytes-to-disk, and it must be impossible for the ASR path to affect it (§4.2).
 
+### 3.1 Rev 4: both, in that order
+
+Shipped behaviour as of v0.3.0. The table above is not wrong — every row of it still
+argues for the post-meeting pass, which is why that pass is still the one that
+produces the transcript you keep. What changed is that "you don't see words appear
+during the meeting" turned out *not* to be worth nothing: watching it work is how you
+know the phone is actually picking up the room, while you can still move it.
+
+So both passes run, and the live one is explicitly scaffolding:
+
+```
+during meeting   →  record to disk, AND stream a 20M zipformer for the on-screen preview.
+on stop          →  queue the Parakeet job over the same segments on disk.
+job runs         →  clears the live lines, writes its own. Same meeting, replaced in place.
+```
+
+The live pass buys none of the quality arguments above and gives up all of them — it is
+greedy, beam 1, 20M parameters, and it commits words before hearing the end of the
+sentence. It is a preview, not a draft. Two things keep it from costing anything that
+matters:
+
+- It reads the same `AudioRecord` buffers the writer already has, through a bounded
+  queue on its own thread. If it falls behind it drops audio and the recording does not
+  notice — the disk copy is always complete regardless (§4.2 still holds).
+- Its output is disposable by construction. `TranscribeWorker` clears the meeting's
+  lines once the accurate model has loaded — after, so a failed load leaves the preview
+  rather than an empty meeting.
+
+**Cost:** two models on disk (~615 MB downloaded) instead of one, and the accurate pass
+now always runs rather than being skipped when live produced something.
+
 ---
 
 ## 4. Memory: budget it, don't discover it

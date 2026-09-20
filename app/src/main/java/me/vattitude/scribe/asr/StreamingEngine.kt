@@ -82,8 +82,8 @@ class StreamingEngine private constructor(
 
     companion object {
         fun create(context: Context, threads: Int = 2): StreamingEngine {
-            val p = ModelManager.resolve(context)
-                ?: throw IllegalStateException("Speech model not downloaded yet")
+            val p = ModelManager.resolve(context, ModelManager.Model.LIVE)
+                ?: throw IllegalStateException("Live speech model not downloaded yet")
 
             val config = OnlineRecognizerConfig(
                 featConfig = FeatureConfig(sampleRate = Audio.SAMPLE_RATE, featureDim = 80),
@@ -113,7 +113,7 @@ class StreamingEngine private constructor(
                 enableEndpoint = true,
                 decodingMethod = "greedy_search"
             )
-            return StreamingEngine(OnlineRecognizer(config = config), ModelManager.MODEL_ID)
+            return StreamingEngine(OnlineRecognizer(config = config), ModelManager.Model.LIVE.id)
         }
     }
 }

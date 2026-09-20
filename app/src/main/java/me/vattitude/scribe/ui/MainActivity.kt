@@ -126,7 +126,7 @@ class MainActivity : AppCompatActivity() {
 
             // A meeting left "recorded" was waiting on the model. Now that it's
             // here, pick it back up without making the user hunt for a button.
-            if (ModelManager.isReady(this@MainActivity)) {
+            if (ModelManager.isReady(this@MainActivity, ModelManager.Model.ACCURATE)) {
                 list.filter { it.state == MeetingState.RECORDED }
                     .forEach { TranscribeWorker.enqueue(this@MainActivity, it.id) }
             }
@@ -148,14 +148,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun renderModelCard() {
-        val ready = ModelManager.isReady(this)
-        b.modelCard.visibility = if (ready) View.GONE else View.VISIBLE
-        if (!ready && !downloading) {
+        val missing = ModelManager.missing(this)
+        b.modelCard.visibility = if (missing.isEmpty()) View.GONE else View.VISIBLE
+        if (missing.isNotEmpty() && !downloading) {
+            val mb = missing.sumOf { it.approxBytes } / 1_000_000
             b.modelStatus.text =
-                "Speech model not downloaded (~600 MB, one time).\n" +
-                    "You can record without it — transcription starts once it's here."
+                "Speech models not downloaded (~$mb MB, one time).\n" +
+                    "You can record without them — transcription starts once they're here."
             b.modelAction.isEnabled = true
-            b.modelAction.text = "Download model"
+            b.modelAction.text = "Download models"
             b.modelProgress.visibility = View.GONE
         }
     }
@@ -168,18 +169,28 @@ class MainActivity : AppCompatActivity() {
         b.modelProgress.visibility = View.VISIBLE
         b.modelProgress.isIndeterminate = true
 
+        // Two models, downloaded back to back. Progress is weighted by their
+        // known sizes so the bar advances once through the pair rather than
+        // snapping back to zero when the second one starts.
+        val pending = ModelManager.missing(this)
+        val grandTotal = pending.sumOf { it.approxBytes }.coerceAtLeast(1L)
+
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    ModelManager.download(this@MainActivity) { done, total ->
-                        if (total > 0) {
-                            val pct = (done * 100 / total).toInt()
+                    var alreadyDone = 0L
+                    for (model in pending) {
+                        val label = if (model.streaming) "live model" else "accurate model"
+                        ModelManager.download(this@MainActivity, model) { done, total ->
+                            val pct = ((alreadyDone + done) * 100 / grandTotal)
+                                .toInt().coerceIn(0, 100)
                             runOnUiThread {
                                 b.modelProgress.isIndeterminate = false
                                 b.modelProgress.progress = pct
-                                b.modelStatus.text = "Downloading speech model… $pct%"
+                                b.modelStatus.text = "Downloading $label… $pct%"
                             }
                         }
+                        alreadyDone += model.approxBytes
                     }
                 }
             }
@@ -215,7 +226,7 @@ class MainActivity : AppCompatActivity() {
 
     /** Explicit "do it now", so transcription never depends on the scheduler's mood. */
     private fun retry(id: Long) {
-        if (!ModelManager.isReady(this)) {
+        if (!ModelManager.isReady(this, ModelManager.Model.ACCURATE)) {
             Snackbar.make(b.root, "Download the speech model first", Snackbar.LENGTH_LONG).show()
             return
         }

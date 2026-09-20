@@ -31,8 +31,8 @@ class LiveTranscriber(
 
     /** @return true if the recognizer loaded and live transcription is running. */
     fun start(): Boolean {
-        if (!ModelManager.isReady(context)) {
-            Log.i(TAG, "no model — live transcription disabled")
+        if (!ModelManager.isReady(context, ModelManager.Model.LIVE)) {
+            Log.i(TAG, "no live model — live transcription disabled")
             return false
         }
         running = true

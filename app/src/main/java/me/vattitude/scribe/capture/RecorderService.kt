@@ -153,15 +153,17 @@ class RecorderService : Service() {
             RecordingState.set(null)
             ScribeWidget.refresh(this)
 
-            if (liveLines > 0) {
-                // Live transcription already produced the transcript; re-running the
-                // offline pass would only duplicate every line.
-                repo.setProgress(meetingId, segments, ModelManager.MODEL_ID)
-                repo.setState(meetingId, me.vattitude.scribe.store.MeetingState.DONE)
-            } else if (segments > 0) {
-                // Live never started (no model) or produced nothing. The audio is on
-                // disk, so fall back to transcribing it after the fact.
+            if (segments > 0) {
+                // The live pass is a preview, not the product: its small streaming
+                // model commits words before it has heard the end of the sentence.
+                // The audio is on disk either way, so always re-run the accurate
+                // model afterwards — it replaces those lines in place.
                 TranscribeWorker.enqueue(this, meetingId)
+            } else if (liveLines > 0) {
+                // No audio segments to re-read, so whatever live produced is all
+                // there will ever be.
+                repo.setProgress(meetingId, 0, ModelManager.Model.LIVE.id)
+                repo.setState(meetingId, me.vattitude.scribe.store.MeetingState.DONE)
             }
             stopSelf()
         }

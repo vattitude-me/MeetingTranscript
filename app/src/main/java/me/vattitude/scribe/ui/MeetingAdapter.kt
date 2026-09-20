@@ -42,8 +42,11 @@ class MeetingAdapter(
         holder.b.status.text = m.error ?: when (m.state) {
             MeetingState.RECORDING -> "Recording"
             MeetingState.RECORDED -> "Queued \u2014 tap to transcribe now"
+            // The live pass already left a rough transcript, so this second pass is
+            // an improvement rather than a wait — say so, or "Transcribing 0/11"
+            // reads as if nothing is there yet.
             MeetingState.TRANSCRIBING ->
-                if (m.segmentCount > 0) "Transcribing ${m.segmentsDone}/${m.segmentCount}"
+                if (m.segmentCount > 0) "Improving transcript ${m.segmentsDone}/${m.segmentCount}"
                 else "Transcribing"
             MeetingState.DONE -> "Transcript ready"
             else -> "Failed"
