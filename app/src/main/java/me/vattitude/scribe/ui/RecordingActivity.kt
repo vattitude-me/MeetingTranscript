@@ -33,6 +33,11 @@ class RecordingActivity : AppCompatActivity() {
     private var blink: ValueAnimator? = null
     private var stopping = false
 
+    /** Guards against closing before the service has published its first state. */
+    private var sawRecording = false
+    private var startedAt = 0L
+    private var ticker: Runnable? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         b = ActivityRecordingBinding.inflate(layoutInflater)
@@ -44,6 +49,7 @@ class RecordingActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         b.stop.setOnClickListener { stop() }
+        b.levelHint.text = "Starting\u2026"
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -62,15 +68,37 @@ class RecordingActivity : AppCompatActivity() {
             }
         }
         startBlink()
+        startTicker()
+    }
+
+    /** Repaints the timer once a second regardless of when audio buffers land. */
+    private fun startTicker() {
+        ticker = object : Runnable {
+            override fun run() {
+                val anchor = startedAt
+                if (anchor > 0) {
+                    b.timer.text =
+                        RecorderService.formatElapsed(System.currentTimeMillis() - anchor)
+                }
+                b.timer.postDelayed(this, 1000)
+            }
+        }.also { b.timer.post(it) }
     }
 
     private fun render(r: Recording?) {
         if (r == null) {
-            // The service stopped — from here, the notification, or the widget.
-            if (!isFinishing) finish()
+            // Starting is not instant: the service has to open AudioRecord before
+            // it publishes the first Recording, and this screen is usually opened
+            // in the same breath as starting it. Closing on the first null would
+            // dump the user straight back to the list, which is what it did.
+            // Only treat null as "stopped" once we have actually seen it running.
+            if (sawRecording && !isFinishing) finish()
             return
         }
-        b.timer.text = RecorderService.formatElapsed(r.elapsedMs)
+        sawRecording = true
+        // Note the anchor and let the ticker render it. Painting the timer from
+        // here would inherit the capture loop's ~2s cadence and visibly stutter.
+        startedAt = r.startedAt
         b.meter.push(r.level)
         b.levelHint.text = when {
             r.isWorryinglyQuiet ->
@@ -101,6 +129,7 @@ class RecordingActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        ticker?.let { b.timer.removeCallbacks(it) }
         blink?.cancel()
         super.onDestroy()
     }

@@ -64,7 +64,7 @@ class RecorderService : Service() {
 
         startForeground(
             NOTIF_ID,
-            buildNotification(0L),
+            buildNotification(startedAt),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
         )
@@ -107,9 +107,9 @@ class RecorderService : Service() {
         recorder = rec
         val writer = SegmentWriter(dir)
         val buf = ShortArray(bufBytes / Audio.BYTES_PER_SAMPLE)
-        var lastNotify = 0L
         var lastFlush = 0L
         var silentMs = 0L
+        var lastQuiet = false
 
         // Live transcription runs on its own thread, fed by a bounded queue.
         // Inference must never block the capture loop: a slow decode would make
@@ -138,10 +138,16 @@ class RecorderService : Service() {
                 RecordingState.set(Recording(meetingId, startedAt, elapsed, level, silentMs))
 
                 val now = System.currentTimeMillis()
-                if (now - lastNotify > 1000) {
-                    lastNotify = now
+                // The capture loop only comes round every ~2s (one AudioRecord
+                // buffer), so ticking the notification from here made the timer
+                // jump 0, 2, 4. Let the system run the clock instead: a chronometer
+                // counts smoothly on its own and costs no wakeups. We still repost
+                // when the quiet warning flips, which is the only text that changes.
+                val quiet = silentMs >= Recording.QUIET_WARNING_MS
+                if (quiet != lastQuiet) {
+                    lastQuiet = quiet
                     NotificationManagerCompat.from(this).notify(
-                        NOTIF_ID, buildNotification(elapsed, silentMs >= Recording.QUIET_WARNING_MS)
+                        NOTIF_ID, buildNotification(startedAt, quiet)
                     )
                 }
                 // Durability beats throughput: get bytes to disk every few seconds.
@@ -193,7 +199,7 @@ class RecorderService : Service() {
         super.onDestroy()
     }
 
-    private fun buildNotification(elapsedMs: Long, quiet: Boolean = false): Notification {
+    private fun buildNotification(startedAt: Long, quiet: Boolean = false): Notification {
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, me.vattitude.scribe.ui.RecordingActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
@@ -204,14 +210,14 @@ class RecorderService : Service() {
         )
         return NotificationCompat.Builder(this, ScribeApp.CHANNEL_RECORDING)
             .setContentTitle(if (quiet) "Recording \u2014 hearing nothing" else "Recording meeting")
-            .setContentText(
-                if (quiet) formatElapsed(elapsedMs) + "  \u00b7  Check the mic isn't covered"
-                else formatElapsed(elapsedMs)
-            )
+            .setContentText(if (quiet) "Check the mic isn't covered" else null)
             .setSmallIcon(R.drawable.ic_mic)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setUsesChronometer(false)
+            // Android ticks this itself, once a second, smoothly.
+            .setUsesChronometer(true)
+            .setWhen(startedAt)
+            .setShowWhen(true)
             .setContentIntent(open)
             .addAction(R.drawable.ic_stop, "Stop", stop)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)

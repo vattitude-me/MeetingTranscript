@@ -61,6 +61,8 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         notify(meetingId, 0, segments.size)
 
         var engine: AsrEngine? = null
+        // A line held back because it might continue into the next segment.
+        var pendingTail: me.vattitude.scribe.asr.AsrLine? = null
         try {
             // Loading the model crosses into ONNX Runtime. A native OOM there aborts
             // the process outright and no catch below will ever see it, so leave a
@@ -79,6 +81,16 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             // Resume: skip whatever a previous run already committed.
             for (i in meeting.segmentsDone until segments.size) {
                 if (isStopped) {
+                    // A held-back tail lives only in memory. Commit it before
+                    // yielding, or the resumed run starts after that segment and
+                    // the line is lost outright.
+                    pendingTail?.let { t ->
+                        repo.appendLines(
+                            meetingId,
+                            listOf(Line(0, meetingId, idx++, t.tStartMs, t.tEndMs, t.text, t.confidence))
+                        )
+                        pendingTail = null
+                    }
                     repo.setState(meetingId, MeetingState.RECORDED, "Paused")
                     return@withContext Result.retry()
                 }
@@ -88,12 +100,44 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
 
                 val lines = engine.transcribe(samples, offsetMs)
                 if (lines.isNotEmpty()) {
-                    repo.appendLines(meetingId, lines.map { l ->
-                        Line(0, meetingId, idx++, l.tStartMs, l.tEndMs, l.text, l.confidence)
-                    })
+                    // Segments are cut on a 30s clock, not on sentences, so a
+                    // sentence spanning a boundary arrives as a tail and a head.
+                    // Join them when the first did not end in punctuation, rather
+                    // than leaving every boundary as a visible break.
+                    val merged = lines.toMutableList()
+                    val tail = pendingTail
+                    if (tail != null && merged.isNotEmpty()) {
+                        val head = merged[0]
+                        merged[0] = head.copy(
+                            tStartMs = tail.tStartMs,
+                            text = (tail.text.trimEnd() + " " + head.text.trimStart()).trim()
+                        )
+                        pendingTail = null
+                    }
+
+                    // Hold back a trailing unpunctuated line: it may continue.
+                    val last = merged.lastOrNull()
+                    if (last != null && i + 1 < segments.size && !endsSentence(last.text)) {
+                        pendingTail = last
+                        merged.removeAt(merged.size - 1)
+                    }
+
+                    if (merged.isNotEmpty()) {
+                        repo.appendLines(meetingId, merged.map { l ->
+                            Line(0, meetingId, idx++, l.tStartMs, l.tEndMs, l.text, l.confidence)
+                        })
+                    }
                 }
                 repo.setProgress(meetingId, i + 1, engine.modelId)
                 notify(meetingId, i + 1, segments.size)
+            }
+
+            pendingTail?.let { t ->
+                repo.appendLines(
+                    meetingId,
+                    listOf(Line(0, meetingId, idx++, t.tStartMs, t.tEndMs, t.text, t.confidence))
+                )
+                pendingTail = null
             }
 
             repo.setState(meetingId, MeetingState.DONE)
@@ -109,6 +153,9 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             try { engine?.close() } catch (_: Throwable) {}
         }
     }
+
+    private fun endsSentence(text: String): Boolean =
+        text.trimEnd().lastOrNull()?.let { it == '.' || it == '?' || it == '!' } ?: false
 
     /** Reads a raw little-endian PCM16 segment into the -1..1 floats the model wants. */
     private fun readPcm(file: File): FloatArray {
@@ -182,6 +229,9 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         private const val TAG = "TranscribeWorker"
         private const val NOTIF_ID = 1002
         const val KEY_MEETING_ID = "meetingId"
+
+        /** One tag across every transcribe job, so the UI can watch them all at once. */
+        const val WORK_TAG = "transcribe"
         const val BREADCRUMB_LOADING = "Loading speech model\u2026"
 
         /**
@@ -194,6 +244,7 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         fun enqueue(context: Context, meetingId: Long) {
             val req = OneTimeWorkRequestBuilder<TranscribeWorker>()
                 .setInputData(Data.Builder().putLong(KEY_MEETING_ID, meetingId).build())
+                .addTag(WORK_TAG)
                 .build()
             WorkManager.getInstance(context)
                 .enqueueUniqueWork("transcribe-$meetingId", ExistingWorkPolicy.KEEP, req)

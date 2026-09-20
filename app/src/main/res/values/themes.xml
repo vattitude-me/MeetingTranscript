@@ -1,6 +1,18 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
     <style name="Theme.Scribe" parent="Theme.Material3.DayNight.NoActionBar">
+        <!--
+          colorPrimary alone is not enough: Material3 keeps its own default
+          colorOnPrimary (a purple) for anything painted on top, which is how
+          the record button ended up purple-on-green. Every colour that sits on
+          top of one we override has to be overridden with it.
+        -->
         <item name="colorPrimary">@color/scribe_primary</item>
+        <item name="colorOnPrimary">@color/scribe_on_primary</item>
+        <item name="colorPrimaryContainer">@color/scribe_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/scribe_on_primary_container</item>
+        <item name="colorSecondary">@color/scribe_primary</item>
+        <item name="colorOnSecondary">@color/scribe_on_primary</item>
+        <item name="colorError">@color/rec_red</item>
     </style>
 
     <style name="Theme.Scribe.Transparent" parent="Theme.Scribe">

@@ -10,8 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -80,6 +84,19 @@ class MainActivity : AppCompatActivity() {
             RecordingState.state.collect { renderRecordButton() }
         }
 
+        // The list used to repaint only in onResume(), so a meeting that
+        // finished transcribing while you were watching it sat there reading
+        // "Queued — tap to transcribe now" until you left the screen and came
+        // back. Follow the workers instead: every transcribe job is tagged, so
+        // one observer covers all of them, however many are running.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WorkManager.getInstance(this@MainActivity)
+                    .getWorkInfosByTagFlow(TranscribeWorker.WORK_TAG)
+                    .collect { infos -> onWorkChanged(infos) }
+            }
+        }
+
         b.search.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(e: android.text.Editable?) {
                 query = e?.toString().orEmpty()
@@ -138,6 +155,16 @@ class MainActivity : AppCompatActivity() {
                     .forEach { TranscribeWorker.enqueue(this@MainActivity, it.id) }
             }
         }
+    }
+
+    /**
+     * Repaint on every worker transition. Rows carry their progress in the
+     * database, which the worker updates per segment, so re-reading the list is
+     * enough — we do not need the progress out of [WorkInfo] itself.
+     */
+    private fun onWorkChanged(infos: List<WorkInfo>) {
+        if (infos.isEmpty()) return
+        refresh()
     }
 
     private fun renderRecordButton() {

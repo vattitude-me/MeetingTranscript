@@ -38,10 +38,30 @@ class ParakeetEngine private constructor(
     override fun close() = recognizer.release()
 
     companion object {
-        /** Hard cap on how long a single transcript line may run. */
-        private const val MAX_LINE_MS = 15_000L
-        /** A pause longer than this ends the line even mid-sentence. */
-        private const val LINE_BREAK_GAP_MS = 700L
+        /**
+         * Hard cap on how long a single transcript line may run.
+         *
+         * This is a readability limit, not a speech-detection one: it only bites
+         * when someone talks continuously with no sentence-ending punctuation.
+         */
+        private const val MAX_LINE_MS = 30_000L
+
+        /**
+         * A pause longer than this ends the line even mid-sentence.
+         *
+         * This used to be 700ms, which is *shorter than the pauses inside ordinary
+         * speech* — people stop for breath, hesitate, and search for a word for
+         * longer than that. The result was a transcript chopped into a new line
+         * every few words. 2.5s is long enough to sit inside a sentence and short
+         * enough to break between speakers.
+         */
+        private const val LINE_BREAK_GAP_MS = 2_500L
+
+        /**
+         * Below this, a "sentence" is almost certainly a fragment — "Right." or
+         * "Yeah." — and reads better joined to what follows than alone on a line.
+         */
+        private const val MIN_LINE_MS = 1_500L
 
         fun create(context: Context, threads: Int = 4): ParakeetEngine {
             val p = ModelManager.resolve(context, ModelManager.Model.ACCURATE)
@@ -118,7 +138,10 @@ class ParakeetEngine private constructor(
                 val endsSentence = tokens[i].trimEnd().endsWith('.') ||
                     tokens[i].trimEnd().endsWith('?') || tokens[i].trimEnd().endsWith('!')
 
-                if (endsSentence || runMs > MAX_LINE_MS) {
+                // A sentence end only breaks the line once the line is worth
+                // having. Otherwise "Yeah." and "Right." each become their own
+                // paragraph, which is what made the output look shredded.
+                if ((endsSentence && runMs >= MIN_LINE_MS) || runMs > MAX_LINE_MS) {
                     flush(t)
                     if (i + 1 < tokens.size) lineStart = timestamps[i + 1]
                 }
