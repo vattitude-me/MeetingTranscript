@@ -22,8 +22,14 @@ object ModelManager {
 
     private const val TAG = "ModelManager"
 
-    const val MODEL_ID = "parakeet-tdt-0.6b-v3-int8"
-    private const val ARCHIVE = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2"
+    /**
+     * Streaming zipformer, 20M params, int8. Chosen over the far more accurate
+     * Parakeet TDT because it is the only one of the two that can decode while the
+     * meeting is still happening — and because 128 MB of weights, not 600 MB, is
+     * what you want resident for 45 minutes of continuous inference.
+     */
+    const val MODEL_ID = "streaming-zipformer-en-20M-int8"
+    private const val ARCHIVE = "sherpa-onnx-streaming-zipformer-en-20M-2023-02-17.tar.bz2"
     private const val URL_BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
 
     data class Paths(val encoder: File, val decoder: File, val joiner: File, val tokens: File)
@@ -40,13 +46,42 @@ object ModelManager {
         if (!dir.isDirectory) return null
         val onnx = dir.walkTopDown().filter { it.isFile && it.name.endsWith(".onnx") }.toList()
         val tokens = dir.walkTopDown().firstOrNull { it.isFile && it.name == "tokens.txt" } ?: return null
-        val encoder = onnx.firstOrNull { it.name.contains("encoder") } ?: return null
-        val decoder = onnx.firstOrNull { it.name.contains("decoder") } ?: return null
-        val joiner = onnx.firstOrNull { it.name.contains("joiner") } ?: return null
+
+        // These bundles ship fp32 AND int8 side by side (encoder-….onnx next to
+        // encoder-….int8.onnx). Taking whichever the file walk happened to reach
+        // first could load the fp32 weights — several times the memory, for nothing.
+        // Always prefer int8, and never fall back silently.
+        fun pick(kind: String): File? {
+            val matches = onnx.filter { it.name.contains(kind) }
+            return matches.firstOrNull { it.name.contains(".int8.") } ?: matches.firstOrNull()
+        }
+
+        val encoder = pick("encoder") ?: return null
+        val decoder = pick("decoder") ?: return null
+        val joiner = pick("joiner") ?: return null
+        Log.i(TAG, "model: ${encoder.name}, ${decoder.name}, ${joiner.name}")
         return Paths(encoder, decoder, joiner, tokens)
     }
 
     fun isReady(context: Context): Boolean = resolve(context) != null
+
+    /**
+     * Removes model bundles we no longer use. Changing MODEL_ID would otherwise
+     * strand the previous download on disk — 600 MB, in the case of the Parakeet
+     * bundle this app shipped with before live transcription.
+     */
+    fun pruneOldModels(context: Context) {
+        val root = File(context.filesDir, "models")
+        if (!root.isDirectory) return
+        root.listFiles()?.forEach { child ->
+            if (child.isDirectory && child.name != MODEL_ID) {
+                val freed = child.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+                if (child.deleteRecursively()) {
+                    Log.i(TAG, "pruned ${child.name}, freed ${freed / 1_000_000} MB")
+                }
+            }
+        }
+    }
 
     /**
      * Downloads and unpacks the model bundle. Safe to re-run: it stages into a

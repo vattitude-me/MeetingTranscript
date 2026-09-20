@@ -35,9 +35,7 @@ class MeetingDetailActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         repo = Repo(this)
 
-        adapter = LineAdapter { line ->
-            startActivity(Exporters.shareText(line.text))
-        }
+        adapter = LineAdapter()
         b.lines.layoutManager = LinearLayoutManager(this)
         b.lines.adapter = adapter
     }

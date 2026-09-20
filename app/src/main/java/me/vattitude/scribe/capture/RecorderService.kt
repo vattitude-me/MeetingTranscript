@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import me.vattitude.scribe.R
 import me.vattitude.scribe.ScribeApp
+import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.asr.TranscribeWorker
 import me.vattitude.scribe.store.Repo
 import me.vattitude.scribe.ui.MainActivity
@@ -109,12 +110,19 @@ class RecorderService : Service() {
         var lastNotify = 0L
         var lastFlush = 0L
 
+        // Live transcription runs on its own thread, fed by a bounded queue.
+        // Inference must never block the capture loop: a slow decode would make
+        // AudioRecord's ring buffer overrun and we would lose audio outright.
+        // If the queue backs up we drop from the live view, never from the file.
+        val live = LiveTranscriber(this, repo, meetingId).takeIf { it.start() }
+
         rec.startRecording()
         try {
             while (running) {
                 val n = rec.read(buf, 0, buf.size)
                 if (n <= 0) continue
                 writer.write(buf, n)
+                live?.offer(buf, n)
 
                 val elapsed = Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE)
                 var peak = 0
@@ -137,13 +145,24 @@ class RecorderService : Service() {
             rec.release()
             recorder = null
 
+            val liveLines = live?.stop() ?: 0
+
             val segments = writer.close()
             val durationMs = Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE)
             repo.finishRecording(meetingId, System.currentTimeMillis(), durationMs, segments)
             RecordingState.set(null)
             ScribeWidget.refresh(this)
 
-            if (segments > 0) TranscribeWorker.enqueue(this, meetingId)
+            if (liveLines > 0) {
+                // Live transcription already produced the transcript; re-running the
+                // offline pass would only duplicate every line.
+                repo.setProgress(meetingId, segments, ModelManager.MODEL_ID)
+                repo.setState(meetingId, me.vattitude.scribe.store.MeetingState.DONE)
+            } else if (segments > 0) {
+                // Live never started (no model) or produced nothing. The audio is on
+                // disk, so fall back to transcribing it after the fact.
+                TranscribeWorker.enqueue(this, meetingId)
+            }
             stopSelf()
         }
     }

@@ -4,11 +4,15 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import me.vattitude.scribe.asr.ModelManager
 
 class ScribeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Reclaim superseded model downloads off the main thread.
+        Thread { runCatching { ModelManager.pruneOldModels(this) } }.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(

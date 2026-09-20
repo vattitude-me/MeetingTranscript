@@ -4,7 +4,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingStart="16dp"
-    android:paddingEnd="8dp"
+    android:paddingEnd="16dp"
     android:paddingTop="8dp"
     android:paddingBottom="8dp">
 
@@ -25,12 +25,4 @@
         android:textSize="15sp"
         android:textIsSelectable="true" />
 
-    <ImageButton
-        android:id="@+id/share"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_share"
-        android:alpha="0.6"
-        android:contentDescription="Share this line" />
 </LinearLayout>

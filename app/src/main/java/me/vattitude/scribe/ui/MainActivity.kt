@@ -19,6 +19,7 @@ import kotlinx.coroutines.withContext
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.asr.TranscribeWorker
 import me.vattitude.scribe.capture.RecorderService
+import me.vattitude.scribe.capture.LiveTranscript
 import me.vattitude.scribe.capture.RecordingState
 import me.vattitude.scribe.databinding.ActivityMainBinding
 import me.vattitude.scribe.store.MeetingState
@@ -78,6 +79,21 @@ class MainActivity : AppCompatActivity() {
             RecordingState.state.collect { renderRecordButton() }
         }
 
+        // The live transcript, filling in while the meeting runs.
+        lifecycleScope.launch {
+            LiveTranscript.state.collect { v ->
+                val body = v.lines.joinToString("\n\n")
+                b.liveText.text = when {
+                    v.partial.isEmpty() -> body
+                    body.isEmpty() -> v.partial
+                    else -> "$body\n\n${v.partial}"
+                }
+                // Provisional text is dimmed, so it reads as "not settled yet".
+                b.liveText.alpha = if (v.partial.isEmpty()) 1f else 0.95f
+                b.livePanel.post { b.livePanel.fullScroll(View.FOCUS_DOWN) }
+            }
+        }
+
         if (intent.getBooleanExtra(EXTRA_REQUEST_PERMISSION, false)) {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
         }
@@ -119,11 +135,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderRecordButton() {
         val rec = RecordingState.state.value
-        b.record.text = if (rec != null) "Stop recording" else "Start recording"
+        val recording = rec != null
+        b.record.text = if (recording) "Stop recording" else "Start recording"
         b.recordHint.text = when {
             rec != null -> "Recording · " + RecorderService.formatElapsed(rec.elapsedMs)
             else -> "Put the phone next to your laptop speaker."
         }
+        // While recording, the live transcript takes over the screen; the meeting
+        // list is not what you want to be looking at.
+        b.livePanel.visibility = if (recording) View.VISIBLE else View.GONE
+        b.listPanel.visibility = if (recording) View.GONE else View.VISIBLE
     }
 
     private fun renderModelCard() {
@@ -184,7 +205,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleRecording() {
-        if (RecordingState.isRecording) RecorderService.stop(this) else RecorderService.start(this)
+        if (RecordingState.isRecording) {
+            RecorderService.stop(this)
+        } else {
+            LiveTranscript.reset()
+            RecorderService.start(this)
+        }
     }
 
     /** Explicit "do it now", so transcription never depends on the scheduler's mood. */

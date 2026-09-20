@@ -7,9 +7,7 @@ import me.vattitude.scribe.databinding.ItemLineBinding
 import me.vattitude.scribe.export.Exporters
 import me.vattitude.scribe.store.Line
 
-class LineAdapter(
-    private val onShare: (Line) -> Unit
-) : RecyclerView.Adapter<LineAdapter.VH>() {
+class LineAdapter : RecyclerView.Adapter<LineAdapter.VH>() {
 
     private var items: List<Line> = emptyList()
 
@@ -28,7 +26,6 @@ class LineAdapter(
         val l = items[position]
         holder.b.time.text = Exporters.timestamp(l.tStartMs)
         holder.b.text.text = l.text
-        holder.b.share.setOnClickListener { onShare(l) }
     }
 
     class VH(val b: ItemLineBinding) : RecyclerView.ViewHolder(b.root)

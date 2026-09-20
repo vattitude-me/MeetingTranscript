@@ -13,8 +13,8 @@ android {
         applicationId = "me.vattitude.scribe"
         minSdk = 29
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.2.0"
 
         // Pixel 9 is arm64. Restricting ABIs keeps the APK ~4x smaller, since the
         // sherpa-onnx AAR ships a full onnxruntime .so per architecture.
