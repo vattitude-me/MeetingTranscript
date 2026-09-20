@@ -59,4 +59,14 @@
     <color name="rec_red">#FFB1C8</color>
     <color name="scribe_primary">#6FD3F2</color>
     <color name="scribe_on_primary">#003543</color>
+
+    <!-- Speaker labels. Six hues that hold up against #0F1417 and stay
+         distinguishable to the most common forms of colour blindness — the
+         label always carries the name too, so colour is never the only cue. -->
+    <color name="s_spk_0">#6FD3F2</color>
+    <color name="s_spk_1">#FFB1C8</color>
+    <color name="s_spk_2">#9EE493</color>
+    <color name="s_spk_3">#FFD48A</color>
+    <color name="s_spk_4">#C9B6F5</color>
+    <color name="s_spk_5">#8DD9C4</color>
 </resources>

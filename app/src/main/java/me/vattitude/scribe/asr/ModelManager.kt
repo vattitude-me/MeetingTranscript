@@ -38,7 +38,13 @@ object ModelManager {
         val id: String,
         val archive: String,
         val approxBytes: Long,
-        val streaming: Boolean
+        val streaming: Boolean,
+        /** Not part of the first-run download; the app works without it. */
+        val optional: Boolean = false,
+        /** Published as a bare .onnx rather than a .tar.bz2 bundle. */
+        val bareModel: Boolean = false,
+        /** Speaker models live under different release tags than the ASR ones. */
+        val urlBase: String = URL_BASE
     ) {
         LIVE(
             "streaming-zipformer-en-20M-int8",
@@ -51,10 +57,43 @@ object ModelManager {
             "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2",
             487_170_055L,
             false
+        ),
+
+        /**
+         * Speaker diarization, in two parts: [SEGMENTATION] finds where speech
+         * is and where it changes hands, [EMBEDDING] turns each stretch into a
+         * voiceprint so the same person clusters together across the meeting.
+         *
+         * Together ~80 MB against the 615 MB already downloaded, and both run
+         * on the sherpa-onnx binary the app already ships. They are [optional]
+         * — the app transcribes perfectly well without them, so they are never
+         * part of the first-run download.
+         */
+        SEGMENTATION(
+            "pyannote-segmentation-3-0",
+            "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
+            6_958_444L,
+            false,
+            optional = true,
+            urlBase = SPEAKER_SEG_BASE
+        ),
+        EMBEDDING(
+            "3dspeaker-cam++-en-common",
+            "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+            29_596_978L,
+            false,
+            optional = true,
+            bareModel = true,
+            urlBase = SPEAKER_EMB_BASE
         );
     }
 
     private const val URL_BASE = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/"
+    private const val SPEAKER_SEG_BASE =
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/"
+    // "recongition" is upstream's spelling in the release tag, not a typo here.
+    private const val SPEAKER_EMB_BASE =
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/"
 
     data class Paths(val encoder: File, val decoder: File, val joiner: File, val tokens: File)
 
@@ -88,15 +127,39 @@ object ModelManager {
         return Paths(encoder, decoder, joiner, tokens)
     }
 
-    fun isReady(context: Context, model: Model): Boolean = resolve(context, model) != null
+    /**
+     * Resolves a model that is one bare .onnx file rather than an
+     * encoder/decoder/joiner triple — the diarization pair. [resolve] would
+     * return null for these because it insists on all three parts plus tokens.
+     */
+    fun resolveSingle(context: Context, model: Model): File? {
+        val dir = modelDir(context, model)
+        if (!dir.isDirectory) return null
+        val onnx = dir.walkTopDown().filter { it.isFile && it.name.endsWith(".onnx") }.toList()
+        if (onnx.isEmpty()) return null
+        return onnx.firstOrNull { it.name.contains(".int8.") } ?: onnx.first()
+    }
+
+    fun isReady(context: Context, model: Model): Boolean =
+        if (model.bareModel || model.optional) resolveSingle(context, model) != null
+        else resolve(context, model) != null
 
     /** True when at least one model is present, i.e. we can transcribe somehow. */
     fun anyReady(context: Context): Boolean =
         Model.entries.any { isReady(context, it) }
 
-    /** The models still to download, in the order they should be fetched. */
+    /**
+     * The models still to download for the app to do its job. Optional models
+     * (diarization) are deliberately excluded — including them would turn the
+     * first-run prompt from 615 MB into 695 MB for a feature the user has not
+     * asked for yet. They are fetched from Settings, on request.
+     */
     fun missing(context: Context): List<Model> =
-        Model.entries.filterNot { isReady(context, it) }
+        Model.entries.filterNot { it.optional }.filterNot { isReady(context, it) }
+
+    /** Optional extras not yet downloaded, e.g. the diarization pair. */
+    fun missingOptional(context: Context): List<Model> =
+        Model.entries.filter { it.optional }.filterNot { isReady(context, it) }
 
     /**
      * Removes model bundles we no longer use. Changing MODEL_ID would otherwise
@@ -132,7 +195,7 @@ object ModelManager {
         staging.deleteRecursively()
         staging.mkdirs()
 
-        val conn = (URL(URL_BASE + model.archive).openConnection() as HttpURLConnection).apply {
+        val conn = (URL(model.urlBase + model.archive).openConnection() as HttpURLConnection).apply {
             connectTimeout = 30_000
             readTimeout = 60_000
             instanceFollowRedirects = true
@@ -151,6 +214,20 @@ object ModelManager {
                     if (n > 0) { read += n; onProgress(read, total) }
                     return n
                 }
+            }
+            if (model.bareModel) {
+                // Published as a plain .onnx, not an archive. Nothing to unpack.
+                FileOutputStream(File(staging, File(model.archive).name)).use { out ->
+                    counting.copyTo(out, 1 shl 16)
+                }
+                target.deleteRecursively()
+                target.parentFile?.mkdirs()
+                if (!staging.renameTo(target)) {
+                    staging.copyRecursively(target, overwrite = true)
+                    staging.deleteRecursively()
+                }
+                Log.i(TAG, "${model.id} ready at $target")
+                return
             }
             TarArchiveInputStream(BZip2CompressorInputStream(counting, true)).use { tar ->
                 var entry = tar.nextEntry

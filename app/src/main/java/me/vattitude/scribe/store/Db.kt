@@ -42,7 +42,9 @@ data class Line(
     val tStartMs: Long,
     val tEndMs: Long,
     val text: String,
-    val confidence: Double
+    val confidence: Double,
+    /** Diarization cluster, or -1 when the meeting has not been diarized. */
+    val speaker: Int = -1
 )
 
 class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, null, VERSION) {
@@ -75,23 +77,51 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, 
               t_end_ms INTEGER NOT NULL,
               text TEXT NOT NULL,
               confidence REAL NOT NULL DEFAULT 0,
+              speaker INTEGER NOT NULL DEFAULT -1,
               FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
             )
             """.trimIndent()
         )
         db.execSQL("CREATE INDEX idx_lines_meeting ON lines(meeting_id, idx)")
+        db.execSQL(
+            """
+            CREATE TABLE speakers (
+              meeting_id INTEGER NOT NULL,
+              speaker INTEGER NOT NULL,
+              name TEXT,
+              PRIMARY KEY(meeting_id, speaker),
+              FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
     }
 
+    /**
+     * Migrations are additive from here. The app is going to be in people's
+     * hands, and a meeting they recorded is not reproducible — dropping the
+     * table on upgrade would destroy the only copy of something they cannot
+     * record again.
+     */
     override fun onUpgrade(db: SQLiteDatabase, oldV: Int, newV: Int) {
-        // v0.1: no shipped migrations yet.
-        db.execSQL("DROP TABLE IF EXISTS lines")
-        db.execSQL("DROP TABLE IF EXISTS meetings")
-        onCreate(db)
+        if (oldV < 2) {
+            db.execSQL("ALTER TABLE lines ADD COLUMN speaker INTEGER NOT NULL DEFAULT -1")
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS speakers (
+                  meeting_id INTEGER NOT NULL,
+                  speaker INTEGER NOT NULL,
+                  name TEXT,
+                  PRIMARY KEY(meeting_id, speaker),
+                  FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+                )
+                """.trimIndent()
+            )
+        }
     }
 
     companion object {
         private const val NAME = "scribe.db"
-        private const val VERSION = 1
+        private const val VERSION = 2
 
         @Volatile private var instance: Db? = null
         fun get(context: Context): Db =
@@ -150,6 +180,19 @@ class Repo(context: Context) {
         m?.segmentDir?.deleteRecursively()
     }
 
+    /** Drops every meeting, line and audio file. The models stay — they are a 615 MB re-download. */
+    fun deleteEverything() {
+        val dirs = meetings().map { it.segmentDir }
+        db.writableDatabase.delete("lines", null, null)
+        db.writableDatabase.delete("meetings", null, null)
+        dirs.forEach { runCatching { it.deleteRecursively() } }
+    }
+
+    /** Deletes only the audio, keeping transcripts. Used by the storage row in Settings. */
+    fun deleteAllAudio() {
+        meetings().forEach { runCatching { it.segmentDir.deleteRecursively() } }
+    }
+
     fun appendLines(meetingId: Long, lines: List<Line>) {
         val w = db.writableDatabase
         w.beginTransaction()
@@ -162,12 +205,59 @@ class Repo(context: Context) {
                     put("t_end_ms", l.tEndMs)
                     put("text", l.text)
                     put("confidence", l.confidence)
+                    put("speaker", l.speaker)
                 })
             }
             w.setTransactionSuccessful()
         } finally {
             w.endTransaction()
         }
+    }
+
+    /**
+     * Writes the speaker label onto each line in one transaction. Diarization
+     * runs after the text exists, so this updates rows rather than inserting.
+     */
+    fun setLineSpeakers(meetingId: Long, byIdx: Map<Int, Int>) {
+        if (byIdx.isEmpty()) return
+        val w = db.writableDatabase
+        w.beginTransaction()
+        try {
+            for ((idx, speaker) in byIdx) {
+                w.update(
+                    "lines",
+                    ContentValues().apply { put("speaker", speaker) },
+                    "meeting_id=? AND idx=?",
+                    arrayOf(meetingId.toString(), idx.toString())
+                )
+            }
+            w.setTransactionSuccessful()
+        } finally {
+            w.endTransaction()
+        }
+    }
+
+    /** User-given names for a meeting's speakers, keyed by cluster index. */
+    fun speakerNames(meetingId: Long): Map<Int, String> =
+        db.readableDatabase.rawQuery(
+            "SELECT speaker, name FROM speakers WHERE meeting_id=? AND name IS NOT NULL",
+            arrayOf(meetingId.toString())
+        ).use { c ->
+            buildMap { while (c.moveToNext()) put(c.getInt(0), c.getString(1)) }
+        }
+
+    /** Names a clustered voice. The model never does this — only the user can. */
+    fun nameSpeaker(meetingId: Long, speaker: Int, name: String?) {
+        db.writableDatabase.insertWithOnConflict(
+            "speakers",
+            null,
+            ContentValues().apply {
+                put("meeting_id", meetingId)
+                put("speaker", speaker)
+                put("name", name)
+            },
+            SQLiteDatabase.CONFLICT_REPLACE
+        )
     }
 
     /**
@@ -264,6 +354,7 @@ class Repo(context: Context) {
         tStartMs = long("t_start_ms"),
         tEndMs = long("t_end_ms"),
         text = str("text"),
-        confidence = getDouble(getColumnIndexOrThrow("confidence"))
+        confidence = getDouble(getColumnIndexOrThrow("confidence")),
+        speaker = int("speaker")
     )
 }

@@ -20,6 +20,7 @@ import me.vattitude.scribe.capture.Audio
 import me.vattitude.scribe.store.Line
 import me.vattitude.scribe.store.MeetingState
 import me.vattitude.scribe.store.Repo
+import me.vattitude.scribe.store.Settings
 import androidx.core.app.TaskStackBuilder
 import me.vattitude.scribe.ui.MainActivity
 import me.vattitude.scribe.ui.MeetingDetailActivity
@@ -163,8 +164,28 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             }
 
             repo.setState(meetingId, MeetingState.DONE)
-            val finalLines = repo.lines(meetingId)
+            var finalLines = repo.lines(meetingId)
             draftTitle(repo, meetingId, finalLines)
+
+            // Diarization runs here, while the audio still exists — it reads
+            // waveforms, not text, so it cannot be added retroactively once the
+            // retention policy has deleted the recording. Doing it inside the
+            // same pass is what keeps "delete audio after transcribing" safe to
+            // leave ON by default.
+            if (DiarizeEngine.isReady(applicationContext) && finalLines.isNotEmpty()) {
+                runCatching { diarize(repo, meetingId, segments, finalLines) }
+                    .onFailure { Log.w(TAG, "diarization failed for $meetingId", it) }
+                finalLines = repo.lines(meetingId)
+            }
+
+            // The audio has done its job. Dropping it here rather than on a timer
+            // means the window where both exist is as short as it can be, and only
+            // ever closes on success — a failed pass keeps its audio to retry from.
+            if (Settings(applicationContext).deleteAudioAfterTranscribe && finalLines.isNotEmpty()) {
+                runCatching { meeting.segmentDir.deleteRecursively() }
+                    .onFailure { Log.w(TAG, "could not delete audio for $meetingId", it) }
+            }
+
             val done = repo.meeting(meetingId)
             notifyDone(meetingId, done?.title?.ifBlank { "Untitled meeting" } ?: "Untitled meeting", finalLines.size)
             Result.success()
@@ -180,6 +201,54 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
 
     private fun endsSentence(text: String): Boolean =
         text.trimEnd().lastOrNull() in SENTENCE_END
+
+    /**
+     * Labels each transcript line with the voice that spoke most of it.
+     *
+     * Diarization needs the whole meeting at once — clustering is what makes
+     * speaker 1 the same person at minute 2 and minute 40, and that is only
+     * decidable globally. So this concatenates the segments rather than working
+     * per segment as transcription does.
+     */
+    private fun diarize(repo: Repo, meetingId: Long, segments: List<File>, lines: List<Line>) {
+        val total = segments.sumOf { it.length() / 2 }.toInt()
+        if (total <= 0) return
+        val all = FloatArray(total)
+        var at = 0
+        for (f in segments) {
+            val chunk = readPcm(f)
+            val room = minOf(chunk.size, total - at)
+            if (room <= 0) break
+            System.arraycopy(chunk, 0, all, at, room)
+            at += room
+        }
+
+        DiarizeEngine.create(applicationContext).use { d ->
+            val turns = d.run(all) { pct -> notifyDiarizing(meetingId, pct) }
+            if (turns.isEmpty()) return
+            repo.setLineSpeakers(meetingId, assign(lines, turns))
+        }
+    }
+
+    /**
+     * A line gets the speaker who holds the most of its duration. Turn and line
+     * boundaries never align exactly — one is drawn by acoustics, the other by
+     * punctuation — so overlap is the only sound basis for the decision.
+     */
+    private fun assign(lines: List<Line>, turns: List<DiarizeEngine.Turn>): Map<Int, Int> =
+        buildMap {
+            for (line in lines) {
+                var best = -1
+                var bestOverlap = 0L
+                for (t in turns) {
+                    if (t.endMs <= line.tStartMs) continue
+                    if (t.startMs >= line.tEndMs) break
+                    val overlap = minOf(t.endMs, line.tEndMs) - maxOf(t.startMs, line.tStartMs)
+                    if (overlap > bestOverlap) { bestOverlap = overlap; best = t.speaker }
+                }
+                if (best >= 0) put(line.idx, best)
+            }
+        }
 
     /** Reads a raw little-endian PCM16 segment into the -1..1 floats the model wants. */
     private fun readPcm(file: File): FloatArray {
@@ -208,6 +277,25 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
+            .build()
+        NotificationManagerCompat.from(applicationContext).let {
+            try { it.notify(NOTIF_ID, n) } catch (_: SecurityException) {}
+        }
+    }
+
+    /**
+     * Diarization is a second progress bar on a job the user already thinks is
+     * finishing. It reuses the same notification so there is one row, not two,
+     * and says what it is doing — otherwise the bar appears to restart.
+     */
+    private fun notifyDiarizing(meetingId: Long, pct: Int) {
+        val n = NotificationCompat.Builder(applicationContext, ScribeApp.CHANNEL_TRANSCRIBE)
+            .setContentTitle("Identifying speakers")
+            .setContentText("$pct%")
+            .setSmallIcon(R.drawable.ic_mic)
+            .setProgress(100, pct, false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .build()
         NotificationManagerCompat.from(applicationContext).let {
             try { it.notify(NOTIF_ID, n) } catch (_: SecurityException) {}

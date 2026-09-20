@@ -11,7 +11,15 @@
         android:title="Rename"
         app:showAsAction="never" />
     <item
-        android:id="@+id/action_share_json"
-        android:title="Share for summarizer (.json)"
+        android:id="@+id/action_prompt"
+        android:title="Copy for a chatbot"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_speakers"
+        android:title="Conversation"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_export_as"
+        android:title="Export as…"
         app:showAsAction="never" />
 </menu>

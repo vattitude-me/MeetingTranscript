@@ -26,4 +26,29 @@
     <string name="model_download">Download models</string>
     <string name="rec_already_works">Recording already works</string>
     <string name="rec_already_works_body">Audio captured now is saved and queued; it transcribes automatically the moment the download lands. You do not have to wait here.</string>
+
+    <string name="settings">Settings</string>
+    <string name="settings_desc">Settings</string>
+    <string name="settings_data">Your data</string>
+    <string name="settings_storage">Storage and privacy</string>
+    <string name="settings_about">About</string>
+
+    <string name="export_backup">Export a backup</string>
+    <string name="export_backup_sub">Every meeting and transcript as one file you keep.</string>
+    <string name="import_backup">Restore a backup</string>
+    <string name="import_backup_sub">Adds the meetings from a Scribe backup. Nothing already here is replaced.</string>
+
+    <string name="delete_audio">Delete audio after transcribing</string>
+    <string name="delete_audio_sub">Recommended. The transcript is kept; only the recording is removed, and only once it has been transcribed.</string>
+    <string name="clear_audio">Clear recorded audio</string>
+    <string name="clear_audio_sub">Frees space. Transcripts stay.</string>
+    <string name="clear_all">Delete everything</string>
+    <string name="clear_all_sub">Every meeting, transcript and recording on this phone.</string>
+
+    <string name="about_body">Records a meeting and turns it into a timestamped transcript, entirely on this phone. No account, no upload, works in aeroplane mode.</string>
+    <string name="about_privacy">Recording other people has rules that vary by jurisdiction and employer. That part is on you.</string>
+
+    <string name="settings_speakers">Speakers</string>
+    <string name="speaker_models">Identify speakers</string>
+    <string name="speaker_models_sub">Separate voices in new recordings</string>
 </resources>
