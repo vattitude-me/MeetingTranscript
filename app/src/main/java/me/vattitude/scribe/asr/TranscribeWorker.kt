@@ -202,54 +202,12 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
     private fun endsSentence(text: String): Boolean =
         text.trimEnd().lastOrNull() in SENTENCE_END
 
-    /**
-     * Labels each transcript line with the voice that spoke most of it.
-     *
-     * Diarization needs the whole meeting at once — clustering is what makes
-     * speaker 1 the same person at minute 2 and minute 40, and that is only
-     * decidable globally. So this concatenates the segments rather than working
-     * per segment as transcription does.
-     */
+    /** Speaker separation, shared with [ReDiarizeWorker] — see [Diarizer]. */
     private fun diarize(repo: Repo, meetingId: Long, segments: List<File>, lines: List<Line>) {
-        val total = segments.sumOf { it.length() / 2 }.toInt()
-        if (total <= 0) return
-        val all = FloatArray(total)
-        var at = 0
-        for (f in segments) {
-            val chunk = readPcm(f)
-            val room = minOf(chunk.size, total - at)
-            if (room <= 0) break
-            System.arraycopy(chunk, 0, all, at, room)
-            at += room
-        }
-
-        DiarizeEngine.create(applicationContext).use { d ->
+        Diarizer.run(applicationContext, repo, meetingId, segments, lines) {
             notifyDiarizing(meetingId)
-            val turns = d.run(all)
-            if (turns.isEmpty()) return
-            repo.setLineSpeakers(meetingId, assign(lines, turns))
         }
     }
-
-    /**
-     * A line gets the speaker who holds the most of its duration. Turn and line
-     * boundaries never align exactly — one is drawn by acoustics, the other by
-     * punctuation — so overlap is the only sound basis for the decision.
-     */
-    private fun assign(lines: List<Line>, turns: List<DiarizeEngine.Turn>): Map<Int, Int> =
-        buildMap {
-            for (line in lines) {
-                var best = -1
-                var bestOverlap = 0L
-                for (t in turns) {
-                    if (t.endMs <= line.tStartMs) continue
-                    if (t.startMs >= line.tEndMs) break
-                    val overlap = minOf(t.endMs, line.tEndMs) - maxOf(t.startMs, line.tStartMs)
-                    if (overlap > bestOverlap) { bestOverlap = overlap; best = t.speaker }
-                }
-                if (best >= 0) put(line.idx, best)
-            }
-        }
 
     /** Reads a raw little-endian PCM16 segment into the -1..1 floats the model wants. */
     private fun readPcm(file: File): FloatArray {

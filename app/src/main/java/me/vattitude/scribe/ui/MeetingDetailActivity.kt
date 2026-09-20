@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.vattitude.scribe.R
 import me.vattitude.scribe.asr.Dynamics
+import me.vattitude.scribe.asr.Diarizer
+import me.vattitude.scribe.asr.ReDiarizeWorker
 import me.vattitude.scribe.databinding.ActivityDetailBinding
 import me.vattitude.scribe.export.Exporters
 import me.vattitude.scribe.store.Line
@@ -31,6 +33,9 @@ class MeetingDetailActivity : AppCompatActivity() {
     private var meeting: Meeting? = null
     private var lines: List<Line> = emptyList()
     private var names: Map<Int, String> = emptyMap()
+
+    /** Whether the original audio survives, so voices can be separated again. */
+    private var hasAudio = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +58,11 @@ class MeetingDetailActivity : AppCompatActivity() {
             val loaded = withContext(Dispatchers.IO) {
                 Triple(repo.meeting(id), repo.lines(id), repo.speakerNames(id))
             }
+            // Re-separating voices reads the original audio, which is gone if
+            // the user asked for recordings to be deleted after transcription.
+            hasAudio = withContext(Dispatchers.IO) {
+                loaded.first?.let { Diarizer.segmentsOf(it.segmentDir).isNotEmpty() } ?: false
+            }
             val (m, ls) = loaded.first to loaded.second
             if (m == null) { finish(); return@launch }
             meeting = m
@@ -70,7 +80,13 @@ class MeetingDetailActivity : AppCompatActivity() {
             val state = when (m.state) {
                 MeetingState.DONE -> {
                     val voices = ls.map { it.speaker }.filter { it >= 0 }.distinct().size
-                    " · ${ls.size} lines" + if (voices > 1) " · $voices voices" else ""
+                    buildString {
+                        append(" · ${ls.size} lines")
+                        if (voices > 1) {
+                            append(" · $voices voices")
+                            if (hasAudio) append(" · tap to fix")
+                        }
+                    }
                 }
                 MeetingState.TRANSCRIBING -> " · transcribing ${m.segmentsDone}/${m.segmentCount}"
                 MeetingState.RECORDED -> " · " + (m.error ?: "queued")
@@ -78,6 +94,14 @@ class MeetingDetailActivity : AppCompatActivity() {
                 else -> " · " + (m.error ?: "failed")
             }
             b.status.text = meta + dur + state
+
+            // The voice count is the one number on this screen the user can see
+            // is wrong, so make it the thing they can tap to correct. A menu
+            // item alone would not be found by the person who needs it.
+            val fixable = m.state == MeetingState.DONE && ls.any { it.speaker >= 0 } && hasAudio
+            b.status.isClickable = fixable
+            b.status.setOnClickListener(if (fixable) View.OnClickListener { promptSpeakerCount(m) } else null)
+
             b.empty.visibility = if (ls.isEmpty()) View.VISIBLE else View.GONE
         }
     }
@@ -108,6 +132,7 @@ class MeetingDetailActivity : AppCompatActivity() {
                 } else showDynamics()
                 true
             }
+            R.id.action_speaker_count -> { promptSpeakerCount(m); true }
             R.id.action_export_as -> {
                 if (lines.isEmpty()) noTranscript() else chooseFormat(m)
                 true
@@ -229,6 +254,59 @@ class MeetingDetailActivity : AppCompatActivity() {
                     adapter.submit(lines, names)
                 }
             }
+            .show()
+    }
+
+    /**
+     * Asks how many people actually spoke, then separates the voices again.
+     *
+     * Guessing the count from the audio alone is the weakest part of this app.
+     * A threshold decides how different two stretches of speech must be before
+     * they count as two people, and no single value works: swept across one-,
+     * two- and three-speaker recordings, none produced the right number for all
+     * of them. One person talking for nine minutes drifts enough to be split
+     * into six. Told the count outright, the clusterer got every sample right.
+     *
+     * So this asks. The user was in the meeting and knows the answer, and the
+     * audio is still on disk, so applying it costs one diarization pass rather
+     * than a whole re-transcription.
+     */
+    private fun promptSpeakerCount(m: Meeting) {
+        if (lines.isEmpty()) { noTranscript(); return }
+        if (!hasAudio) {
+            // Nothing to re-read. Say why rather than failing quietly, since the
+            // cause is a setting the user chose and can change for next time.
+            Snackbar.make(
+                b.root,
+                "The recording was deleted after transcribing, so voices cannot be separated again",
+                Snackbar.LENGTH_LONG
+            ).show()
+            return
+        }
+        // 1..8 covers the meetings this app is for. Past that the labels are
+        // noise anyway, and "let the app decide" stays available for the case
+        // where the user genuinely does not know.
+        val options = (1..8).map { if (it == 1) "1 person (just me)" else "$it people" } +
+            "Let the app decide"
+        val current = m.expectedSpeakers
+        val checked = if (current in 1..8) current - 1 else options.lastIndex
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("How many people spoke?")
+            .setSingleChoiceItems(options.toTypedArray(), checked) { dialog, which ->
+                dialog.dismiss()
+                val count = if (which == options.lastIndex) 0 else which + 1
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { repo.setExpectedSpeakers(m.id, count) }
+                    meeting = m.copy(expectedSpeakers = count)
+                    ReDiarizeWorker.enqueue(this@MeetingDetailActivity, m.id)
+                    Snackbar.make(
+                        b.root,
+                        "Separating voices again — this takes a minute or two",
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
             .show()
     }
 

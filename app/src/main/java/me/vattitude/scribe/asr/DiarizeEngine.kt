@@ -25,16 +25,18 @@ import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
  * one meeting. Naming a speaker is the user's act, not the model's.
  */
 class DiarizeEngine private constructor(
-    private val sd: OfflineSpeakerDiarization
+    private val sd: OfflineSpeakerDiarization,
+    /** True when no speaker count was supplied and the count is inferred. */
+    private val guessing: Boolean
 ) : AutoCloseable {
 
     /** A stretch of audio attributed to one clustered voice. */
     data class Turn(val startMs: Long, val endMs: Long, val speaker: Int)
 
     /**
-     * @param expectedSpeakers when > 0, the clusterer is told exactly how many
-     *   voices to find. That is far more reliable than a similarity threshold,
-     *   so ask the user when we can and pass what they say.
+     * Returns the turns, with cluster ids packed to 0,1,2,… When the speaker
+     * count was guessed rather than supplied, trivial clusters are folded into
+     * their neighbours first — see [dropFragments].
      */
     fun run(samples: FloatArray): List<Turn> {
         if (samples.isEmpty()) return emptyList()
@@ -47,9 +49,85 @@ class DiarizeEngine private constructor(
         // the whole process down. No runCatching can defend against that, so the
         // callback is not worth a progress bar.
         val segments = sd.process(samples)
-        return segments
+        val turns = segments
             .map { Turn((it.start * 1000).toLong(), (it.end * 1000).toLong(), it.speaker) }
             .sortedBy { it.startMs }
+        return renumber(if (guessing) dropFragments(turns) else turns)
+    }
+
+    /**
+     * Folds away clusters that hold a trivial share of the talking.
+     *
+     * Only applied when we are guessing the speaker count. When the user told
+     * us how many voices to expect, every cluster is one they asked for, and
+     * discarding one would be overruling them.
+     *
+     * A single voice recorded for nine minutes drifts — energy, pace, distance
+     * from the mic — and the clusterer mints a new speaker for each drift.
+     * Those spurious clusters are small; real participants are not. Reassigning
+     * a fragment to whichever voice surrounds it is closer to the truth than
+     * leaving a "Speaker 5" who is really Speaker 1 having a quiet moment.
+     *
+     * [MIN_SHARE] is 10%, and it is a partial measure, not a fix. Measured
+     * across four recordings, the floor corrects a two-speaker dialogue that
+     * clusters into three, and leaves a real third participant holding 12% of a
+     * conversation intact. It does *not* rescue the case that prompted it: a
+     * nine-minute monologue splits into two voices whose smaller half holds 13%
+     * of the talking at every threshold from 0.6 to 0.9, so no floor low enough
+     * to keep that 12% speaker can remove it.
+     *
+     * Raising the floor past 13% would fix the monologue and delete a real
+     * person, which is the worse error by far — someone who spoke would vanish
+     * from the transcript. So the floor stays where it does the good it can, and
+     * the real answer is to ask the user: told the true count, the clusterer was
+     * right on all four samples. See MeetingDetailActivity.promptSpeakerCount.
+     */
+    private fun dropFragments(turns: List<Turn>): List<Turn> {
+        if (turns.isEmpty()) return turns
+        val held = turns.groupBy { it.speaker }
+            .mapValues { (_, ts) -> ts.sumOf { it.endMs - it.startMs } }
+        val total = held.values.sum().toDouble()
+        if (total <= 0) return turns
+        val keep = held.filterValues { it / total >= MIN_SHARE }.keys
+        // Never discard everything: if no cluster clears the bar, the recording
+        // is too fragmented to judge and the raw result is the honest answer.
+        if (keep.isEmpty()) return turns
+        val dominant = held.maxByOrNull { it.value }?.key ?: return turns
+        return turns.map { t ->
+            if (t.speaker in keep) t
+            else t.copy(speaker = nearestKept(turns, t, keep) ?: dominant)
+        }
+    }
+
+    /** The kept voice speaking closest in time to [t] — usually the one either side of it. */
+    private fun nearestKept(turns: List<Turn>, t: Turn, keep: Set<Int>): Int? =
+        turns.filter { it.speaker in keep }
+            .minByOrNull { other ->
+                when {
+                    other.endMs <= t.startMs -> t.startMs - other.endMs
+                    other.startMs >= t.endMs -> other.startMs - t.endMs
+                    else -> 0L
+                }
+            }?.speaker
+
+    /**
+     * Packs cluster ids down to 0,1,2,… in order of first appearance.
+     *
+     * The clusterer returns whatever internal ids survived clustering, and they
+     * are not dense: a six-speaker result came back as [0,1,2,4,5,6]. The UI
+     * renders "Speaker ${id + 1}", so that displayed a "Speaker 7" in a meeting
+     * the header called six voices — which reads as a bug even when the
+     * clustering is right.
+     *
+     * Ordering by first appearance also means Speaker 1 is whoever talks first,
+     * which is what a reader assumes a transcript means.
+     */
+    private fun renumber(turns: List<Turn>): List<Turn> {
+        val dense = HashMap<Int, Int>()
+        return turns.map { t ->
+            val id = dense.getOrPut(t.speaker) { dense.size }
+            if (id == t.speaker) t else t.copy(speaker = id)
+        }
     }
 
     override fun close() = sd.release()
@@ -60,26 +138,36 @@ class DiarizeEngine private constructor(
         /**
          * Cosine distance below which two voices are treated as one person.
          *
-         * Measured, not guessed. Swept 0.5–0.9 over a 76-second two-speaker
-         * recording made the way this app records — a phone mic picking up
-         * voices across a room. 0.5 found four speakers and 0.6 found three,
-         * because ordinary variation within one voice exceeded the bar. 0.8 is
-         * the lowest value that finds two, and it produces the same turns as
-         * telling the clusterer the answer outright (numClusters = 2), which is
-         * the strongest evidence available that it is not merely lucky.
-         * See app/src/debug/DiarizeSweep.
+         * **This number cannot be made correct, and that is the point.** Swept
+         * 0.2–0.9 across three recordings — a 9-minute monologue, an 88-second
+         * two-speaker dialogue and a 7-minute one. No value in that range
+         * produced the right speaker count for *any* of them. A single narrator
+         * never collapsed below two voices; two speakers never resolved below
+         * three. Meanwhile numClusters, given the true count, was right on all
+         * three. See app/src/debug/DiarizeSweep.
          *
-         * Erring high merges two similar voices into one; erring low invents
-         * speakers who do not exist. Merging is the better failure: a reader
-         * notices "this label is covering two people" far more easily than they
-         * notice that Speaker 4 and Speaker 6 were always the same person. That
-         * asymmetry is why this sits at the top of the correct range rather than
-         * the bottom.
+         * An earlier version of this comment claimed 0.8 was "measured, not
+         * guessed" on the strength of one 76-second two-speaker clip. It was
+         * measured, but a two-speaker sample only tests whether a threshold
+         * wrongly *merges* voices, never whether it wrongly *splits* one. The
+         * missing case — one person talking for nine minutes — came back as six
+         * speakers in real use.
          *
-         * One sample is one sample. Re-run the sweep before trusting this on
-         * voices less alike than the pair it was tuned on.
+         * So this is a fallback for when the user did not tell us the count,
+         * paired with [MIN_SHARE] to fold away the worst fragments. 0.9 is kept
+         * because higher is consistently less wrong here: over-splitting is the
+         * failure that actually occurs. Even so, the pair still over-counts a
+         * long monologue. The fallback is a best effort, not a solution — the
+         * fix is to ask the user, and the UI now does.
          */
-        const val DEFAULT_THRESHOLD = 0.8f
+        const val DEFAULT_THRESHOLD = 0.9f
+
+        /**
+         * Minimum share of total speech a cluster must hold to count as a
+         * person, when the count is being guessed. See [dropFragments] for why
+         * it cannot go higher, and why no value of it is sufficient on its own.
+         */
+        const val MIN_SHARE = 0.10
 
         fun isReady(context: Context): Boolean =
             ModelManager.resolveSingle(context, ModelManager.Model.SEGMENTATION) != null &&
@@ -124,10 +212,17 @@ class DiarizeEngine private constructor(
                 minDurationOn = 0.3f,
                 minDurationOff = 0.5f
             )
-            Log.i(TAG, "diarization ready (speakers=$expectedSpeakers)")
+            Log.i(
+                TAG,
+                if (expectedSpeakers > 0) "diarization ready (told: $expectedSpeakers speakers)"
+                else "diarization ready (guessing, threshold=$threshold)"
+            )
             // null AssetManager → sherpa-onnx loads from absolute paths, which is
             // what downloaded models need. Verified against the AAR bytecode.
-            return DiarizeEngine(OfflineSpeakerDiarization(null, config))
+            return DiarizeEngine(
+                OfflineSpeakerDiarization(null, config),
+                guessing = expectedSpeakers <= 0
+            )
         }
     }
 }

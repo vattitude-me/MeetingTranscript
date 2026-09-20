@@ -30,7 +30,9 @@ data class Meeting(
     val asrModelId: String?,
     val segmentsDone: Int,
     val segmentCount: Int,
-    val error: String?
+    val error: String?,
+    /** Voices the user said to expect, or 0 when unknown. See Repo.setExpectedSpeakers. */
+    val expectedSpeakers: Int = 0
 ) {
     val segmentDir: File get() = File(dir)
 }
@@ -63,7 +65,8 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, 
               asr_model_id TEXT,
               segments_done INTEGER NOT NULL DEFAULT 0,
               segment_count INTEGER NOT NULL DEFAULT 0,
-              error TEXT
+              error TEXT,
+              expected_speakers INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent()
         )
@@ -117,11 +120,16 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, 
                 """.trimIndent()
             )
         }
+        if (oldV < 3) {
+            // How many voices the user said to expect. 0 means they were not
+            // asked or did not know, and clustering falls back to a threshold.
+            db.execSQL("ALTER TABLE meetings ADD COLUMN expected_speakers INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     companion object {
         private const val NAME = "scribe.db"
-        private const val VERSION = 2
+        private const val VERSION = 3
 
         @Volatile private var instance: Db? = null
         fun get(context: Context): Db =
@@ -237,6 +245,25 @@ class Repo(context: Context) {
         }
     }
 
+    /**
+     * Records how many voices the user says to expect, or 0 for "I don't know".
+     *
+     * This is worth asking for. Clustering by similarity threshold is
+     * unreliable — measured across single- and two-speaker recordings, no
+     * threshold in 0.2..0.9 produced the right count for any of them, while
+     * telling the clusterer the number produced the right answer for all of
+     * them. A number the user supplies is the difference between speaker labels
+     * that are right and speaker labels that are decorative.
+     */
+    fun setExpectedSpeakers(meetingId: Long, count: Int) {
+        db.writableDatabase.update(
+            "meetings",
+            ContentValues().apply { put("expected_speakers", count.coerceAtLeast(0)) },
+            "id=?",
+            arrayOf(meetingId.toString())
+        )
+    }
+
     /** User-given names for a meeting's speakers, keyed by cluster index. */
     fun speakerNames(meetingId: Long): Map<Int, String> =
         db.readableDatabase.rawQuery(
@@ -344,7 +371,8 @@ class Repo(context: Context) {
         asrModelId = strOrNull("asr_model_id"),
         segmentsDone = int("segments_done"),
         segmentCount = int("segment_count"),
-        error = strOrNull("error")
+        error = strOrNull("error"),
+        expectedSpeakers = int("expected_speakers")
     )
 
     private fun android.database.Cursor.toLine() = Line(

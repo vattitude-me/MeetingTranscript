@@ -173,8 +173,13 @@ upgrade and you will have to uninstall first.
   half of the conversation. There is nothing software can do about that on a phone; use
   the laptop speaker. This is the limitation a Mac app removes, by capturing system audio
   directly — see [docs/MACOS.md](docs/MACOS.md).
-- **No speaker labels yet.** Every line is attributed to nobody. Diarization is planned
-  (sherpa-onnx ships the models) but is not wired up.
+- **The speaker count is a guess, and often a bad one.** Left to itself, the clusterer
+  decides how many voices it heard from a similarity threshold, and no single threshold
+  works: swept from 0.2 to 0.9 over one-, two- and three-speaker recordings, none gave
+  the right count for all of them. One person talking for nine minutes drifts enough to
+  be split into several speakers. Told the true number, it was right every time — so
+  when the count looks wrong, tap the line under the title and say how many people
+  spoke, and the voices are separated again without re-transcribing.
 - **Transcription quality is unmeasured** against real meeting audio on a Pixel 9. The
   numbers above are the model author's, not ours.
 - **Android only.** The iOS app in [docs/PLAN.md](docs/PLAN.md) was never built, and is no
