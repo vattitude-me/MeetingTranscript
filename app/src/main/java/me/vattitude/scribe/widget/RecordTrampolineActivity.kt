@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import me.vattitude.scribe.capture.RecorderService
 import me.vattitude.scribe.capture.RecordingState
 import me.vattitude.scribe.ui.MainActivity
+import me.vattitude.scribe.ui.RecordingActivity
 
 /**
  * Invisible, finishes immediately.
@@ -39,8 +40,15 @@ class RecordTrampolineActivity : Activity() {
                     .putExtra(MainActivity.EXTRA_REQUEST_PERMISSION, true)
             )
         } else {
-            if (RecordingState.isRecording) RecorderService.stop(this)
-            else RecorderService.start(this)
+            if (RecordingState.isRecording) {
+                RecorderService.stop(this)
+            } else {
+                RecorderService.start(this)
+                // A widget tap should land somewhere you can see it working. This
+                // also keeps the app visible for the instant the foreground service
+                // needs, which is the exemption this activity exists for.
+                RecordingActivity.open(this)
+            }
         }
 
         finish()

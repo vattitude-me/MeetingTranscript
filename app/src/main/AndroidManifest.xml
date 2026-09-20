@@ -33,6 +33,12 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <activity
+            android:name=".ui.RecordingActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:parentActivityName=".ui.MainActivity" />
+
         <!--
           Widget taps route through this transparent activity rather than starting the
           service directly. Android 14+ throws SecurityException when a microphone-type

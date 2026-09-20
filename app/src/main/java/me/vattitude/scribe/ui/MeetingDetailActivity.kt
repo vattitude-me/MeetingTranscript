@@ -70,6 +70,7 @@ class MeetingDetailActivity : AppCompatActivity() {
         val m = meeting ?: return super.onOptionsItemSelected(item)
         return when (item.itemId) {
             android.R.id.home -> { finish(); true }
+            R.id.action_rename -> { promptRename(m); true }
             R.id.action_share_text -> {
                 if (lines.isEmpty()) noTranscript() else
                     startActivity(Exporters.shareFile(this, m, Exporters.plainText(m, lines), "txt"))
@@ -82,6 +83,37 @@ class MeetingDetailActivity : AppCompatActivity() {
             }
             else -> super.onOptionsItemSelected(item)
         }
+    }
+
+    /**
+     * Meetings are auto-titled with a timestamp, which is enough to record one and
+     * useless for finding it again a week later.
+     */
+    private fun promptRename(m: Meeting) {
+        val input = android.widget.EditText(this).apply {
+            setText(m.title)
+            setSelection(text.length)
+            setSingleLine()
+        }
+        val pad = (24 * resources.displayMetrics.density).toInt()
+        val wrap = android.widget.FrameLayout(this).apply {
+            setPadding(pad, pad / 2, pad, 0)
+            addView(input)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Rename meeting")
+            .setView(wrap)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isEmpty()) return@setPositiveButton
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { repo.rename(m.id, name) }
+                    title = name
+                    meeting = m.copy(title = name)
+                }
+            }
+            .show()
     }
 
     private fun noTranscript() {

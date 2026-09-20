@@ -20,7 +20,9 @@ import me.vattitude.scribe.capture.Audio
 import me.vattitude.scribe.store.Line
 import me.vattitude.scribe.store.MeetingState
 import me.vattitude.scribe.store.Repo
+import androidx.core.app.TaskStackBuilder
 import me.vattitude.scribe.ui.MainActivity
+import me.vattitude.scribe.ui.MeetingDetailActivity
 import java.io.DataInputStream
 import java.io.File
 
@@ -95,7 +97,8 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             }
 
             repo.setState(meetingId, MeetingState.DONE)
-            notifyDone(meetingId, repo.meeting(meetingId)?.title ?: "Meeting")
+            val done = repo.meeting(meetingId)
+            notifyDone(meetingId, done?.title ?: "Meeting", repo.lines(meetingId).size)
             Result.success()
         } catch (e: Throwable) {
             Log.e(TAG, "transcription failed for meeting $meetingId", e)
@@ -140,23 +143,40 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         }
     }
 
-    private fun notifyDone(meetingId: Long, title: String) {
-        val open = PendingIntent.getActivity(
-            applicationContext, 3,
-            Intent(applicationContext, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+    private fun notifyDone(meetingId: Long, title: String, lineCount: Int) {
+        // Opens the transcript itself, with the list behind it so Back still works.
+        // "Transcript ready" that lands on a list you then have to search is a
+        // notification that made you do the work anyway.
+        val open = TaskStackBuilder.create(applicationContext)
+            .addNextIntent(Intent(applicationContext, MainActivity::class.java))
+            .addNextIntent(
+                Intent(applicationContext, MeetingDetailActivity::class.java)
+                    .putExtra(MeetingDetailActivity.EXTRA_ID, meetingId)
+            )
+            .getPendingIntent(
+                meetingId.toInt(),
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
         val n = NotificationCompat.Builder(applicationContext, ScribeApp.CHANNEL_TRANSCRIBE)
             .setContentTitle("Transcript ready")
-            .setContentText(title)
+            .setContentText(
+                if (lineCount > 0) "$title \u00b7 $lineCount lines" else title
+            )
             .setSmallIcon(R.drawable.ic_mic)
             .setAutoCancel(true)
             .setContentIntent(open)
             .build()
         NotificationManagerCompat.from(applicationContext).let {
-            try { it.notify(NOTIF_ID, n) } catch (_: SecurityException) {}
+            // Per-meeting id: two meetings finishing back to back are two results,
+            // and the second must not silently replace the first.
+            try { it.notify(doneNotifId(meetingId), n) } catch (_: SecurityException) {}
         }
+        // Clear the in-progress notification, which is a different id now.
+        NotificationManagerCompat.from(applicationContext).cancel(NOTIF_ID)
     }
+
+    private fun doneNotifId(meetingId: Long): Int = 2000 + (meetingId % 1000).toInt()
 
     companion object {
         private const val TAG = "TranscribeWorker"

@@ -7,6 +7,10 @@
         android:icon="@android:drawable/ic_menu_share"
         app:showAsAction="ifRoom" />
     <item
+        android:id="@+id/action_rename"
+        android:title="Rename"
+        app:showAsAction="never" />
+    <item
         android:id="@+id/action_share_json"
         android:title="Share for summarizer (.json)"
         app:showAsAction="never" />

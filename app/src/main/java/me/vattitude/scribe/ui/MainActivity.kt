@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var repo: Repo
     private lateinit var adapter: MeetingAdapter
     private var downloading = false
+    private var query: String = ""
 
     private val micPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -79,20 +80,15 @@ class MainActivity : AppCompatActivity() {
             RecordingState.state.collect { renderRecordButton() }
         }
 
-        // The live transcript, filling in while the meeting runs.
-        lifecycleScope.launch {
-            LiveTranscript.state.collect { v ->
-                val body = v.lines.joinToString("\n\n")
-                b.liveText.text = when {
-                    v.partial.isEmpty() -> body
-                    body.isEmpty() -> v.partial
-                    else -> "$body\n\n${v.partial}"
-                }
-                // Provisional text is dimmed, so it reads as "not settled yet".
-                b.liveText.alpha = if (v.partial.isEmpty()) 1f else 0.95f
-                b.livePanel.post { b.livePanel.fullScroll(View.FOCUS_DOWN) }
+        b.search.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(e: android.text.Editable?) {
+                query = e?.toString().orEmpty()
+                refresh()
             }
-        }
+            override fun beforeTextChanged(c: CharSequence?, a: Int, b: Int, d: Int) {}
+            override fun onTextChanged(c: CharSequence?, a: Int, b: Int, d: Int) {}
+        })
+
 
         if (intent.getBooleanExtra(EXTRA_REQUEST_PERMISSION, false)) {
             micPermission.launch(Manifest.permission.RECORD_AUDIO)
@@ -108,9 +104,20 @@ class MainActivity : AppCompatActivity() {
         renderModelCard()
         renderRecordButton()
         lifecycleScope.launch {
-            val list = withContext(Dispatchers.IO) { repo.meetings() }
+            val q = query
+            val list = withContext(Dispatchers.IO) {
+                if (q.isBlank()) repo.meetings() else repo.search(q)
+            }
             adapter.submit(list)
+            b.empty.text =
+                if (q.isBlank())
+                    "No meetings yet.\n\nTap Start recording, or add the Scribe widget to your home screen to start with one tap."
+                else "Nothing matches \u201c" + q + "\u201d"
             b.empty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+            // The box is only useful once there is something to search, and it
+            // otherwise just crowds an empty first-run screen.
+            b.searchBox.visibility =
+                if (list.isNotEmpty() || q.isNotBlank()) View.VISIBLE else View.GONE
 
             // Nothing is transcribing right now (we are the only thing that starts
             // it, and a live job would have moved the row on). So a row still stuck
@@ -136,15 +143,14 @@ class MainActivity : AppCompatActivity() {
     private fun renderRecordButton() {
         val rec = RecordingState.state.value
         val recording = rec != null
-        b.record.text = if (recording) "Stop recording" else "Start recording"
+        // While a meeting is running this button is a way back to it, not a
+        // second stop control — stopping lives on the recording screen, the
+        // notification and the widget, which is already more than enough places.
+        b.record.text = if (recording) "Back to recording" else "Start recording"
         b.recordHint.text = when {
-            rec != null -> "Recording · " + RecorderService.formatElapsed(rec.elapsedMs)
+            rec != null -> "Recording \u00b7 " + RecorderService.formatElapsed(rec.elapsedMs)
             else -> "Put the phone next to your laptop speaker."
         }
-        // While recording, the live transcript takes over the screen; the meeting
-        // list is not what you want to be looking at.
-        b.livePanel.visibility = if (recording) View.VISIBLE else View.GONE
-        b.listPanel.visibility = if (recording) View.GONE else View.VISIBLE
     }
 
     private fun renderModelCard() {
@@ -152,9 +158,16 @@ class MainActivity : AppCompatActivity() {
         b.modelCard.visibility = if (missing.isEmpty()) View.GONE else View.VISIBLE
         if (missing.isNotEmpty() && !downloading) {
             val mb = missing.sumOf { it.approxBytes } / 1_000_000
+            // Lead with what the app does and with the fact that you are not
+            // blocked, because the honest headline — "615 MB before anything
+            // works" — is wrong: recording works right now, and the audio is
+            // kept, so a download started later loses nothing.
             b.modelStatus.text =
-                "Speech models not downloaded (~$mb MB, one time).\n" +
-                    "You can record without them — transcription starts once they're here."
+                "Scribe records meetings and transcribes them on this phone. " +
+                    "Nothing is uploaded.\n\n" +
+                    "Speech models: ~$mb MB, once, Wi-Fi recommended. " +
+                    "You can start recording now — anything you record is transcribed " +
+                    "as soon as they finish."
             b.modelAction.isEnabled = true
             b.modelAction.text = "Download models"
             b.modelProgress.visibility = View.GONE
@@ -217,10 +230,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun toggleRecording() {
         if (RecordingState.isRecording) {
-            RecorderService.stop(this)
+            RecordingActivity.open(this)
         } else {
             LiveTranscript.reset()
             RecorderService.start(this)
+            RecordingActivity.open(this)
         }
     }
 

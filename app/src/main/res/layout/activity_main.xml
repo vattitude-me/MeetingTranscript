@@ -64,26 +64,26 @@
         android:textSize="13sp"
         android:alpha="0.7" />
 
-    <androidx.core.widget.NestedScrollView
-        android:id="@+id/livePanel"
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/searchBox"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.Dense"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:visibility="gone"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp">
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:hint="Search transcripts">
 
-        <TextView
-            android:id="@+id/liveText"
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/search"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="15sp"
-            android:lineSpacingMultiplier="1.25"
-            android:textIsSelectable="true" />
-    </androidx.core.widget.NestedScrollView>
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
 
     <FrameLayout
-        android:id="@+id/listPanel"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
@@ -103,6 +103,6 @@
             android:padding="32dp"
             android:gravity="center"
             android:alpha="0.6"
-            android:text="No meetings yet.\nAdd the Scribe widget to your home screen to start with one tap." />
+            android:text="No meetings yet.\n\nTap Start recording, or add the Scribe widget to your home screen to start with one tap." />
     </FrameLayout>
 </LinearLayout>

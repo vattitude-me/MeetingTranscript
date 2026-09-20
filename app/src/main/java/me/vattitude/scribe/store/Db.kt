@@ -184,6 +184,23 @@ class Repo(context: Context) {
             arrayOf(meetingId.toString())
         ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
 
+    /**
+     * Searches titles and transcript text together — "the meeting where someone
+     * said X" is the question you actually have, and it is rarely the title.
+     */
+    fun search(query: String): List<Meeting> {
+        val q = "%" + query.trim() + "%"
+        return db.readableDatabase.rawQuery(
+            """
+            SELECT DISTINCT m.* FROM meetings m
+            LEFT JOIN lines l ON l.meeting_id = m.id
+            WHERE m.title LIKE ? OR l.text LIKE ?
+            ORDER BY m.started_at DESC
+            """.trimIndent(),
+            arrayOf(q, q)
+        ).use { c -> buildList { while (c.moveToNext()) add(c.toMeeting()) } }
+    }
+
     fun meetings(): List<Meeting> =
         db.readableDatabase.rawQuery("SELECT * FROM meetings ORDER BY started_at DESC", null)
             .use { c -> buildList { while (c.moveToNext()) add(c.toMeeting()) } }
