@@ -17,7 +17,7 @@ import com.k2fsa.sherpa.onnx.SpeakerEmbeddingExtractorConfig
  * clustered so the same voice gets the same label across the whole meeting.
  *
  * Both ship in the sherpa-onnx AAR this app already bundles, so this adds no
- * dependency and no native library — only the two model downloads (~80 MB
+ * dependency and no native library — only the two model downloads (37 MB
  * against the 615 MB already there).
  *
  * This produces *turns*, not names. Nothing here identifies a person: a cluster
@@ -36,20 +36,17 @@ class DiarizeEngine private constructor(
      *   voices to find. That is far more reliable than a similarity threshold,
      *   so ask the user when we can and pass what they say.
      */
-    fun run(samples: FloatArray, onProgress: ((Int) -> Unit)? = null): List<Turn> {
+    fun run(samples: FloatArray): List<Turn> {
         if (samples.isEmpty()) return emptyList()
-        val segments = if (onProgress == null) {
-            sd.process(samples)
-        } else {
-            sd.processWithCallback(
-                samples,
-                { done, total, _ ->
-                    if (total > 0) onProgress((done * 100 / total).coerceIn(0, 100))
-                    0
-                },
-                0L
-            )
-        }
+        // Deliberately process(), not processWithCallback().
+        //
+        // The callback overload takes Function3<Integer, Integer, Long, Integer>
+        // \u2014 boxed. Kotlin compiles a lambda with those parameter types to a
+        // primitive invoke(IIJ), the JNI lookup for the boxed method fails, and
+        // the result is not an exception but an abort in native code that takes
+        // the whole process down. No runCatching can defend against that, so the
+        // callback is not worth a progress bar.
+        val segments = sd.process(samples)
         return segments
             .map { Turn((it.start * 1000).toLong(), (it.end * 1000).toLong(), it.speaker) }
             .sortedBy { it.startMs }
@@ -59,6 +56,30 @@ class DiarizeEngine private constructor(
 
     companion object {
         private const val TAG = "DiarizeEngine"
+
+        /**
+         * Cosine distance below which two voices are treated as one person.
+         *
+         * Measured, not guessed. Swept 0.5–0.9 over a 76-second two-speaker
+         * recording made the way this app records — a phone mic picking up
+         * voices across a room. 0.5 found four speakers and 0.6 found three,
+         * because ordinary variation within one voice exceeded the bar. 0.8 is
+         * the lowest value that finds two, and it produces the same turns as
+         * telling the clusterer the answer outright (numClusters = 2), which is
+         * the strongest evidence available that it is not merely lucky.
+         * See app/src/debug/DiarizeSweep.
+         *
+         * Erring high merges two similar voices into one; erring low invents
+         * speakers who do not exist. Merging is the better failure: a reader
+         * notices "this label is covering two people" far more easily than they
+         * notice that Speaker 4 and Speaker 6 were always the same person. That
+         * asymmetry is why this sits at the top of the correct range rather than
+         * the bottom.
+         *
+         * One sample is one sample. Re-run the sweep before trusting this on
+         * voices less alike than the pair it was tuned on.
+         */
+        const val DEFAULT_THRESHOLD = 0.8f
 
         fun isReady(context: Context): Boolean =
             ModelManager.resolveSingle(context, ModelManager.Model.SEGMENTATION) != null &&
@@ -71,7 +92,8 @@ class DiarizeEngine private constructor(
         fun create(
             context: Context,
             expectedSpeakers: Int = 0,
-            threads: Int = 2
+            threads: Int = 2,
+            threshold: Float = DEFAULT_THRESHOLD
         ): DiarizeEngine {
             val seg = ModelManager.resolveSingle(context, ModelManager.Model.SEGMENTATION)
                 ?: throw IllegalStateException("Speaker segmentation model not downloaded")
@@ -93,11 +115,8 @@ class DiarizeEngine private constructor(
                 ),
                 clustering = FastClusteringConfig(
                     numClusters = expectedSpeakers,
-                    // Only consulted when numClusters <= 0. 0.5 is the upstream
-                    // default for CAM++ and errs toward merging similar voices
-                    // rather than inventing extra speakers — the less confusing
-                    // failure to read in a transcript.
-                    threshold = 0.5f,
+                    // Only consulted when numClusters <= 0.
+                    threshold = threshold,
                     computeConfidence = false
                 ),
                 // Speech shorter than this is dropped, and gaps shorter than this

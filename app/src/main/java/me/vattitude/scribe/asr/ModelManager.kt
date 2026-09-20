@@ -39,8 +39,12 @@ object ModelManager {
         val archive: String,
         val approxBytes: Long,
         val streaming: Boolean,
-        /** Not part of the first-run download; the app works without it. */
-        val optional: Boolean = false,
+        /**
+         * Speaker models. Downloaded with the rest, but the app still runs
+         * without them \u2014 a missing one costs speaker labels, not transcripts,
+         * so [isReady] for the ASR models never depends on these.
+         */
+        val speaker: Boolean = false,
         /** Published as a bare .onnx rather than a .tar.bz2 bundle. */
         val bareModel: Boolean = false,
         /** Speaker models live under different release tags than the ASR ones. */
@@ -64,17 +68,18 @@ object ModelManager {
          * is and where it changes hands, [EMBEDDING] turns each stretch into a
          * voiceprint so the same person clusters together across the meeting.
          *
-         * Together ~80 MB against the 615 MB already downloaded, and both run
-         * on the sherpa-onnx binary the app already ships. They are [optional]
-         * — the app transcribes perfectly well without them, so they are never
-         * part of the first-run download.
+         * Together 37 MB against the 615 MB already downloaded, and both run on
+         * the sherpa-onnx binary the app already ships \u2014 no new dependency.
+         * Downloaded with the rest, because separating voices is the reason to
+         * use this over a recorder app. Transcription gates on [ACCURATE] alone,
+         * so a missing speaker model costs labels, never a transcript.
          */
         SEGMENTATION(
             "pyannote-segmentation-3-0",
             "sherpa-onnx-pyannote-segmentation-3-0.tar.bz2",
             6_958_444L,
             false,
-            optional = true,
+            speaker = true,
             urlBase = SPEAKER_SEG_BASE
         ),
         EMBEDDING(
@@ -82,7 +87,7 @@ object ModelManager {
             "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
             29_596_978L,
             false,
-            optional = true,
+            speaker = true,
             bareModel = true,
             urlBase = SPEAKER_EMB_BASE
         );
@@ -141,7 +146,7 @@ object ModelManager {
     }
 
     fun isReady(context: Context, model: Model): Boolean =
-        if (model.bareModel || model.optional) resolveSingle(context, model) != null
+        if (model.bareModel || model.speaker) resolveSingle(context, model) != null
         else resolve(context, model) != null
 
     /** True when at least one model is present, i.e. we can transcribe somehow. */
@@ -149,17 +154,19 @@ object ModelManager {
         Model.entries.any { isReady(context, it) }
 
     /**
-     * The models still to download for the app to do its job. Optional models
-     * (diarization) are deliberately excluded — including them would turn the
-     * first-run prompt from 615 MB into 695 MB for a feature the user has not
-     * asked for yet. They are fetched from Settings, on request.
+     * Everything still to download. The speaker models are included: knowing who
+     * spoke is the reason this app exists rather than a recorder, so shipping it
+     * as an opt-in extra would hide the feature behind a settings screen most
+     * people never open. 37 MB on top of 615 MB is not a decision worth asking
+     * about.
      */
     fun missing(context: Context): List<Model> =
-        Model.entries.filterNot { it.optional }.filterNot { isReady(context, it) }
+        Model.entries.filterNot { isReady(context, it) }
 
-    /** Optional extras not yet downloaded, e.g. the diarization pair. */
-    fun missingOptional(context: Context): List<Model> =
-        Model.entries.filter { it.optional }.filterNot { isReady(context, it) }
+    /** Just the speaker pair, for reporting status in Settings. */
+    fun missingSpeaker(context: Context): List<Model> =
+        Model.entries.filter { it.speaker }.filterNot { isReady(context, it) }
+
 
     /**
      * Removes model bundles we no longer use. Changing MODEL_ID would otherwise

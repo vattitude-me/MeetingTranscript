@@ -224,7 +224,8 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
         }
 
         DiarizeEngine.create(applicationContext).use { d ->
-            val turns = d.run(all) { pct -> notifyDiarizing(meetingId, pct) }
+            notifyDiarizing(meetingId)
+            val turns = d.run(all)
             if (turns.isEmpty()) return
             repo.setLineSpeakers(meetingId, assign(lines, turns))
         }
@@ -288,12 +289,12 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
      * finishing. It reuses the same notification so there is one row, not two,
      * and says what it is doing — otherwise the bar appears to restart.
      */
-    private fun notifyDiarizing(meetingId: Long, pct: Int) {
+    private fun notifyDiarizing(meetingId: Long) {
         val n = NotificationCompat.Builder(applicationContext, ScribeApp.CHANNEL_TRANSCRIBE)
             .setContentTitle("Identifying speakers")
-            .setContentText("$pct%")
+            .setContentText("Separating voices")
             .setSmallIcon(R.drawable.ic_mic)
-            .setProgress(100, pct, false)
+            .setProgress(0, 0, true)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .build()

@@ -80,23 +80,24 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun refreshSpeakerRow() {
         if (downloadingSpeakers) return
-        val missing = ModelManager.missingOptional(this)
+        val missing = ModelManager.missingSpeaker(this)
         b.speakerSub.text = if (missing.isEmpty()) {
             "On. New recordings are split by voice."
         } else {
             val mb = missing.sumOf { it.approxBytes } / 1_000_000
-            "Off. Needs a ${mb} MB one-time download."
+            "Waiting on a ${mb} MB download."
         }
     }
 
     /**
-     * Separate from the 615 MB speech models on purpose: transcription is the
-     * app, speaker separation is an addition, and nobody should wait on it to
-     * record their first meeting.
+     * Speaker separation is not a toggle. It comes with the models and runs on
+     * every recording, so this row explains what it does and what it does not
+     * \u2014 the distinction between finding a voice and knowing a person is the
+     * one thing a user must not be confused about.
      */
     private fun confirmSpeakerModels() {
         if (downloadingSpeakers) return
-        val missing = ModelManager.missingOptional(this)
+        val missing = ModelManager.missingSpeaker(this)
         if (missing.isEmpty()) {
             AlertDialog.Builder(this)
                 .setTitle("Speaker separation is on")
@@ -112,12 +113,12 @@ class SettingsActivity : AppCompatActivity() {
         }
         val mb = missing.sumOf { it.approxBytes } / 1_000_000
         AlertDialog.Builder(this)
-            .setTitle("Download speaker models?")
+            .setTitle("Finish the download?")
             .setMessage(
-                "$mb MB, once. Afterwards, new recordings are separated into " +
-                    "distinct voices on this phone, and you can name each one.\n\n" +
-                    "Like everything else here, it runs offline. It finds voices, " +
-                    "not people \u2014 nothing identifies anyone until you type a name."
+                "$mb MB is still missing, so recordings are not being split by " +
+                    "voice yet. Everything else works.\n\n" +
+                    "It runs offline like the rest. It finds voices, not people " +
+                    "\u2014 nothing identifies anyone until you type a name."
             )
             .setNegativeButton("Not now", null)
             .setPositiveButton("Download") { _, _ -> downloadSpeakerModels(missing) }
