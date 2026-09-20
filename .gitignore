@@ -1,0 +1,16 @@
+# Android / Gradle
+build/
+.gradle/
+local.properties
+*.iml
+.idea/
+.DS_Store
+captures/
+
+# Signing — never commit these
+keystore.properties
+*.keystore
+*.jks
+
+# The sherpa-onnx AAR is 48 MB; scripts/setup.sh fetches it.
+app/libs/*.aar

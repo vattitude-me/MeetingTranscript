@@ -1,0 +1,6 @@
+<resources>
+    <color name="scribe_primary">#2E6B5E</color>
+    <color name="scribe_on_primary">#FFFFFF</color>
+    <color name="widget_bg">#1B2620</color>
+    <color name="rec_red">#D3453B</color>
+</resources>
