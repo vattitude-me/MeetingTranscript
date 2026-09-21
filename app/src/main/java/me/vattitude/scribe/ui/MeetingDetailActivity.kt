@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -83,7 +84,11 @@ class MeetingDetailActivity : AppCompatActivity() {
                     buildString {
                         append(" · ${ls.size} lines")
                         if (voices > 1) {
-                            append(" · $voices voices")
+                            // "beta" on the count itself. This line is the only
+                            // place a reader meets the speaker labels, and a
+                            // bare "3 voices" reads as a measurement rather than
+                            // the guess it is.
+                            append(" · $voices voices (beta)")
                             if (hasAudio) append(" · tap to fix")
                         }
                     }
@@ -265,11 +270,23 @@ class MeetingDetailActivity : AppCompatActivity() {
      * they count as two people, and no single value works: swept across one-,
      * two- and three-speaker recordings, none produced the right number for all
      * of them. One person talking for nine minutes drifts enough to be split
-     * into six. Told the count outright, the clusterer got every sample right.
+     * into six.
      *
-     * So this asks. The user was in the meeting and knows the answer, and the
-     * audio is still on disk, so applying it costs one diarization pass rather
-     * than a whole re-transcription.
+     * So this asks, because the user was in the meeting and the audio is still
+     * on disk — applying an answer costs one diarization pass rather than a
+     * whole re-transcription.
+     *
+     * **But the answer is not always obeyed, and this dialog says so.** An
+     * earlier version of this comment claimed the clusterer "got every sample
+     * right" when told the count. That held on the samples it was measured on:
+     * 60s to 5min, two or three speakers, talking split evenly. On a ten-minute
+     * recording shaped like a real meeting — ten people, three doing 98% of the
+     * talking — it returned two voices when told three, fusing two of the three
+     * main speakers. Telling it four produced three clusters, one holding 68%.
+     *
+     * The count is therefore a hint to the clusterer, not an instruction it
+     * follows, which is why speaker separation now ships off by default. See
+     * Settings.identifySpeakers.
      */
     private fun promptSpeakerCount(m: Meeting) {
         if (lines.isEmpty()) { noTranscript(); return }
@@ -283,15 +300,30 @@ class MeetingDetailActivity : AppCompatActivity() {
             ).show()
             return
         }
-        // 1..8 covers the meetings this app is for. Past that the labels are
-        // noise anyway, and "let the app decide" stays available for the case
-        // where the user genuinely does not know.
+        // "Did most of the talking", not "spoke", and the difference is the
+        // whole point. A meeting of ten where seven say one sentence each has
+        // ten people speaking and three worth labelling, and the old wording
+        // made every honest answer wrong: "10" was not offered, "3" was false,
+        // and "let the app decide" is the fallback that already failed.
+        //
+        // 1..8 still caps it. Past that the labels are noise whatever the truth.
         val options = (1..8).map { if (it == 1) "1 person (just me)" else "$it people" } +
             "Let the app decide"
         val current = m.expectedSpeakers
         val checked = if (current in 1..8) current - 1 else options.lastIndex
+        // setMessage is silently dropped when setSingleChoiceItems is used --
+        // the list takes the content slot -- so the warning goes in a custom
+        // title view or it does not appear at all.
+        val head = TextView(this).apply {
+            text = buildString {
+                append("Who did most of the talking?\n\n")
+                append(getString(R.string.speaker_beta_warning))
+            }
+            setPadding(64, 48, 64, 8)
+            setTextAppearance(com.google.android.material.R.style.TextAppearance_Material3_BodyMedium)
+        }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("How many people spoke?")
+            .setCustomTitle(head)
             .setSingleChoiceItems(options.toTypedArray(), checked) { dialog, which ->
                 dialog.dismiss()
                 val count = if (which == options.lastIndex) 0 else which + 1

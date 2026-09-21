@@ -19,6 +19,7 @@ import me.vattitude.scribe.ScribeApp
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.asr.TranscribeWorker
 import me.vattitude.scribe.store.Repo
+import me.vattitude.scribe.store.Settings
 import me.vattitude.scribe.ui.MainActivity
 import me.vattitude.scribe.widget.ScribeWidget
 import java.io.File
@@ -60,6 +61,19 @@ class RecorderService : Service() {
     /** When the current recording started, for reposting the notification. */
     private var notifStartedAt = 0L
 
+    /**
+     * Recorded milliseconds at which the next check-in is due, and when the
+     * outstanding prompt was posted (0 when none is waiting).
+     *
+     * Both are read and written only by the capture thread, except
+     * [checkInAskedAt] which [ACTION_KEEP_RECORDING] clears from the main
+     * thread — hence volatile. The window between the loop reading it and the
+     * action clearing it is one buffer, and losing that race merely means the
+     * prompt is dismissed a couple of seconds later than the tap.
+     */
+    private var nextCheckInMs = Long.MAX_VALUE
+    @Volatile private var checkInAskedAt = 0L
+
     /** Total time spent paused, so the notification clock can skip it. */
     private var pausedTotalMs = 0L
     private var pausedSince = 0L
@@ -73,6 +87,7 @@ class RecorderService : Service() {
             ACTION_STOP -> { stopRecording(); return START_NOT_STICKY }
             ACTION_PAUSE -> setPaused(true)
             ACTION_RESUME -> setPaused(false)
+            ACTION_KEEP_RECORDING -> keepRecording()
             else -> startRecording()
         }
         return START_STICKY
@@ -91,6 +106,11 @@ class RecorderService : Service() {
         pausedTotalMs = 0
         pausedSince = 0
         paused = false
+        checkInAskedAt = 0
+        // Read once per recording: changing the interval mid-meeting would move
+        // a deadline the user is already being measured against.
+        val checkIn = Settings(this).checkInMinutes
+        nextCheckInMs = if (checkIn > 0) checkIn * 60_000L else Long.MAX_VALUE
         val title = ""
         val dir = File(File(filesDir, "meetings"), startedAt.toString())
         val repo = Repo(this)
@@ -211,6 +231,23 @@ class RecorderService : Service() {
                 RecordingState.set(Recording(meetingId, startedAt, elapsed, level, silentMs))
 
                 val now = System.currentTimeMillis()
+
+                // Ask, then pause if nobody answers. See Settings.checkInMinutes.
+                if (checkInAskedAt == 0L && elapsed >= nextCheckInMs) {
+                    checkInAskedAt = now
+                    askStillRecording(elapsed)
+                } else if (checkInAskedAt != 0L &&
+                    now - checkInAskedAt >= Settings.CHECK_IN_GRACE_MS
+                ) {
+                    // Unanswered. Pause rather than stop: the meeting may still
+                    // be going on in a room where nobody is looking at a phone,
+                    // and a pause can be resumed from the notification.
+                    checkInAskedAt = 0
+                    NotificationManagerCompat.from(this).cancel(CHECK_IN_NOTIF_ID)
+                    notifyAutoPaused()
+                    setPaused(true)
+                }
+
                 // The capture loop only comes round every ~2s (one AudioRecord
                 // buffer), so ticking the notification from here made the timer
                 // jump 0, 2, 4. Let the system run the clock instead: a chronometer
@@ -232,6 +269,12 @@ class RecorderService : Service() {
             try { rec.stop() } catch (_: Throwable) {}
             rec.release()
             recorder = null
+
+            // An unanswered prompt outlives the recording otherwise: "Still
+            // recording?" on a meeting that finished ten minutes ago, with a
+            // Keep recording button that no longer does anything.
+            checkInAskedAt = 0
+            NotificationManagerCompat.from(this).cancel(CHECK_IN_NOTIF_ID)
 
             val liveLines = live?.stop() ?: 0
 
@@ -279,6 +322,87 @@ class RecorderService : Service() {
         RecordingState.state.value?.let { RecordingState.set(it.copy(paused = value)) }
         NotificationManagerCompat.from(this).notify(NOTIF_ID, buildNotification(notifStartedAt, quiet = false))
         ScribeWidget.refresh(this)
+    }
+
+    /**
+     * "Keep recording" was tapped: clear the prompt and buy another interval.
+     *
+     * Also resumes if the prompt had already expired and paused the recording —
+     * the user answering late plainly means they want it running, and making
+     * them tap Resume separately would be pedantry about a two-minute deadline.
+     */
+    private fun keepRecording() {
+        if (!running) return
+        checkInAskedAt = 0
+        NotificationManagerCompat.from(this).cancel(CHECK_IN_NOTIF_ID)
+        val interval = Settings(this).checkInMinutes
+        if (interval > 0) {
+            val elapsed = RecordingState.state.value?.elapsedMs ?: 0L
+            nextCheckInMs = elapsed + interval * 60_000L
+        }
+        if (paused) setPaused(false)
+    }
+
+    /**
+     * Asks whether a long recording should continue.
+     *
+     * Its own notification, not an edit of the ongoing one: the recording
+     * notification is silent and sits low in the shade, which is right for
+     * something that needs no answer and wrong for something with a deadline.
+     */
+    private fun askStillRecording(elapsedMs: Long) {
+        val keep = PendingIntent.getService(
+            this, 3,
+            Intent(this, RecorderService::class.java).setAction(ACTION_KEEP_RECORDING),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val stop = PendingIntent.getService(
+            this, 4,
+            Intent(this, RecorderService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val minutes = (elapsedMs / 60_000L).toInt()
+        val n = NotificationCompat.Builder(this, ScribeApp.CHANNEL_CHECK_IN)
+            .setContentTitle("Still recording?")
+            // Says what happens if ignored. A prompt that hides its own deadline
+            // is how a user learns the rule by losing audio to it once.
+            .setContentText("$minutes minutes so far. Pausing shortly unless you tap Keep recording.")
+            .setSmallIcon(R.drawable.ic_mic)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(false)
+            .addAction(R.drawable.ic_mic, "Keep recording", keep)
+            .addAction(R.drawable.ic_stop, "Stop", stop)
+            .build()
+        NotificationManagerCompat.from(this).let {
+            try { it.notify(CHECK_IN_NOTIF_ID, n) } catch (_: SecurityException) {}
+        }
+    }
+
+    /**
+     * Says the recording was paused, and offers the one tap that undoes it.
+     *
+     * Silence here would be the worst outcome of the whole feature: a recording
+     * that stopped capturing with no trace of why.
+     */
+    private fun notifyAutoPaused() {
+        val resume = PendingIntent.getService(
+            this, 5,
+            Intent(this, RecorderService::class.java).setAction(ACTION_KEEP_RECORDING),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val n = NotificationCompat.Builder(this, ScribeApp.CHANNEL_CHECK_IN)
+            .setContentTitle("Recording paused")
+            .setContentText("Nothing is being recorded. Tap Resume to carry on.")
+            .setSmallIcon(R.drawable.ic_mic)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .addAction(R.drawable.ic_mic, "Resume", resume)
+            .build()
+        NotificationManagerCompat.from(this).let {
+            try { it.notify(CHECK_IN_NOTIF_ID, n) } catch (_: SecurityException) {}
+        }
     }
 
     private fun stopRecording() {
@@ -354,7 +478,14 @@ class RecorderService : Service() {
         const val ACTION_STOP = "me.vattitude.scribe.STOP"
         const val ACTION_PAUSE = "me.vattitude.scribe.PAUSE"
         const val ACTION_RESUME = "me.vattitude.scribe.RESUME"
+        const val ACTION_KEEP_RECORDING = "me.vattitude.scribe.KEEP_RECORDING"
         private const val NOTIF_ID = 1001
+
+        /**
+         * Separate from [NOTIF_ID]: this one is dismissible and makes noise.
+         * 1004 because ReDiarizeWorker already holds 1003.
+         */
+        private const val CHECK_IN_NOTIF_ID = 1004
 
         /**
          * Level samples published per AudioRecord buffer. Eight windows over a

@@ -8,6 +8,7 @@
     <string name="resume_recording">Resume recording</string>
     <string name="channel_recording">Recording</string>
     <string name="channel_transcribe">Transcription</string>
+    <string name="channel_check_in">Long recordings</string>
 
     <string name="search_hint">Search titles and transcripts</string>
     <string name="recording">Recording</string>
@@ -52,7 +53,14 @@
     <string name="about_body">Records a meeting and turns it into a timestamped transcript, entirely on this phone. No account, no upload, works in aeroplane mode.</string>
     <string name="about_privacy">Recording other people has rules that vary by jurisdiction and employer. That part is on you.</string>
 
+    <string name="settings_recording">Recording</string>
+    <string name="check_in">Check in during long recordings</string>
+    <string name="check_in_sub">Asks whether to keep going, and pauses if there is no answer. Guards against a recording left running after everyone has left.</string>
     <string name="settings_speakers">Speakers</string>
-    <string name="speaker_models">Identify speakers</string>
-    <string name="speaker_models_sub">Separating voices in new recordings</string>
+    <string name="beta">Beta</string>
+    <string name="identify_speakers">Identify speakers</string>
+    <string name="identify_speakers_sub">Splits the transcript by voice. Often wrong with more than two or three people — it can merge two speakers into one, or attribute words to the wrong person.</string>
+    <string name="speaker_models">Speaker models</string>
+    <string name="speaker_models_sub">37 MB, downloaded once, runs offline</string>
+    <string name="speaker_beta_warning">Speaker labels are experimental and are often wrong. Two people can be merged into one, and words can be attributed to the wrong person. Read them as a hint, never as a record of who said what.</string>
 </resources>

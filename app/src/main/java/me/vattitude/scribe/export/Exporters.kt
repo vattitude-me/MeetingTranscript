@@ -39,10 +39,29 @@ object Exporters {
     private fun dateOf(ms: Long): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(Date(ms))
 
+    /**
+     * The caveat that travels with any export carrying speaker labels.
+     *
+     * An exported file outlives the app's UI. Someone reads the .txt a week
+     * later, in a thread, with no idea the labels are a beta feature that
+     * merges speakers — so the warning has to be inside the file, not beside
+     * it. Omitted when nothing is labelled, where it would only be noise.
+     */
+    private const val SPEAKER_CAVEAT =
+        "Speaker labels are automatic and often wrong: two people can be merged " +
+            "into one, and lines can be attributed to the wrong person. " +
+            "\"Speaker 2\" means a distinct voice, not a known person."
+
+    private fun anyLabelled(lines: List<Line>) = lines.any { it.speaker >= 0 }
+
     /** Human-readable transcript: one timestamped line per utterance. */
     fun plainText(meeting: Meeting, lines: List<Line>, names: Map<Int, String> = emptyMap()): String = buildString {
         appendLine(meeting.title)
         appendLine(dateOf(meeting.startedAt) + "  ·  " + timestamp(meeting.durationMs))
+        if (anyLabelled(lines)) {
+            appendLine()
+            appendLine("Note: $SPEAKER_CAVEAT")
+        }
         appendLine()
         for (l in lines) appendLine("[${timestamp(l.tStartMs)}] ${prefix(l, names)}${l.text}")
     }
@@ -53,6 +72,10 @@ object Exporters {
         appendLine()
         appendLine("*${dateOf(meeting.startedAt)} · ${timestamp(meeting.durationMs)}*")
         appendLine()
+        if (anyLabelled(lines)) {
+            appendLine("> **Note:** $SPEAKER_CAVEAT")
+            appendLine()
+        }
         for (l in lines) {
             val who = label(l.speaker, names)?.let { "**$it** " } ?: ""
             appendLine("- `[${timestamp(l.tStartMs)}]` $who${l.text}")

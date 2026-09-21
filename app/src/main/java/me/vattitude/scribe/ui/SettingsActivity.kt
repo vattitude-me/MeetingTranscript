@@ -12,6 +12,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.vattitude.scribe.R
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.databinding.ActivitySettingsBinding
 import me.vattitude.scribe.export.Backup
@@ -61,6 +62,12 @@ class SettingsActivity : AppCompatActivity() {
         showGrace()
         b.graceRow.setOnClickListener { chooseGrace() }
 
+        showCheckIn()
+        b.checkInRow.setOnClickListener { chooseCheckIn() }
+
+        b.identifySwitch.isChecked = settings.identifySpeakers
+        b.identifyRow.setOnClickListener { toggleIdentifySpeakers() }
+
         b.speakerRow.setOnClickListener { confirmSpeakerModels() }
         b.audioRow.setOnClickListener { confirmClearAudio() }
         b.clearRow.setOnClickListener { confirmClearEverything() }
@@ -81,34 +88,45 @@ class SettingsActivity : AppCompatActivity() {
 
     private var downloadingSpeakers = false
 
+    /**
+     * Describes the models on disk, not whether labelling happens \u2014 that is the
+     * switch above this row, and this row must not contradict it. It used to
+     * read "On. New recordings are split by voice", which became a lie the
+     * moment separation defaulted off.
+     */
     private fun refreshSpeakerRow() {
         if (downloadingSpeakers) return
         val missing = ModelManager.missingSpeaker(this)
         b.speakerSub.text = if (missing.isEmpty()) {
-            "On. New recordings are split by voice."
+            "Downloaded, 37 MB. Runs offline."
         } else {
             val mb = missing.sumOf { it.approxBytes } / 1_000_000
-            "Waiting on a ${mb} MB download."
+            "Not downloaded. ${mb} MB."
         }
+        b.identifySwitch.isChecked = settings.identifySpeakers
     }
 
     /**
-     * Speaker separation is not a toggle. It comes with the models and runs on
-     * every recording, so this row explains what it does and what it does not
-     * \u2014 the distinction between finding a voice and knowing a person is the
-     * one thing a user must not be confused about.
+     * Explains what the models are and what they do not do \u2014 the distinction
+     * between finding a voice and knowing a person is the one thing a user must
+     * not be confused about. Whether separation actually runs is the switch
+     * above; this row is only about the download.
      */
     private fun confirmSpeakerModels() {
         if (downloadingSpeakers) return
         val missing = ModelManager.missingSpeaker(this)
         if (missing.isEmpty()) {
             AlertDialog.Builder(this)
-                .setTitle("Speaker separation is on")
+                .setTitle("Speaker models downloaded")
                 .setMessage(
-                    "New recordings are split by voice after transcribing, and " +
-                        "you can name each voice in the transcript.\n\n" +
-                        "Meetings already transcribed are not relabelled \u2014 it needs " +
-                        "the audio, which may already have been deleted."
+                    if (settings.identifySpeakers)
+                        "New recordings are split by voice after transcribing, and " +
+                            "you can name each voice in the transcript.\n\n" +
+                            "Meetings already transcribed are not relabelled \u2014 it " +
+                            "needs the audio, which may already have been deleted."
+                    else
+                        "The models are on this phone, but \u201cIdentify speakers\u201d " +
+                            "is off, so recordings are not being split by voice."
                 )
                 .setPositiveButton("Done", null)
                 .show()
@@ -116,12 +134,13 @@ class SettingsActivity : AppCompatActivity() {
         }
         val mb = missing.sumOf { it.approxBytes } / 1_000_000
         AlertDialog.Builder(this)
-            .setTitle("Finish the download?")
+            .setTitle("Download speaker models?")
             .setMessage(
-                "$mb MB is still missing, so recordings are not being split by " +
-                    "voice yet. Everything else works.\n\n" +
+                "$mb MB, downloaded once. Everything else works without it.\n\n" +
                     "It runs offline like the rest. It finds voices, not people " +
-                    "\u2014 nothing identifies anyone until you type a name."
+                    "\u2014 nothing identifies anyone until you type a name.\n\n" +
+                    "Still in beta: it is often wrong with more than two or three " +
+                    "people."
             )
             .setNegativeButton("Not now", null)
             .setPositiveButton("Download") { _, _ -> downloadSpeakerModels(missing) }
@@ -151,7 +170,13 @@ class SettingsActivity : AppCompatActivity() {
             refreshSpeakerRow()
             Snackbar.make(
                 b.root,
-                if (ok) "Speaker separation is on" else "Download failed",
+                when {
+                    !ok -> "Download failed"
+                    settings.identifySpeakers -> "Speaker models ready"
+                    // Downloading is not the same as switching on, and saying
+                    // otherwise would promise labels that never appear.
+                    else -> "Downloaded. Turn on “Identify speakers” to use them."
+                },
                 Snackbar.LENGTH_LONG
             ).show()
         }
@@ -217,6 +242,75 @@ class SettingsActivity : AppCompatActivity() {
                 dialog.dismiss()
                 settings.audioGraceHours = choices[which]
                 showGrace()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    /**
+     * Turning it on requires reading what it does wrong; turning it off is one
+     * tap.
+     *
+     * That asymmetry is deliberate. The failure here is not a feature that does
+     * nothing — it is a transcript that confidently attributes a sentence to the
+     * wrong person, which a reader has no way to detect from the screen. Anyone
+     * switching it on should have seen that sentence once.
+     */
+    private fun toggleIdentifySpeakers() {
+        if (settings.identifySpeakers) {
+            settings.identifySpeakers = false
+            b.identifySwitch.isChecked = false
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Identify speakers (beta)")
+            .setMessage(
+                getString(R.string.speaker_beta_warning) + "\n\n" +
+                    "Measured on a ten-minute recording of ten people where three " +
+                    "did almost all of the talking: it found two voices, and " +
+                    "telling it the right number did not fix it.\n\n" +
+                    "It works best with two or three people taking clear turns."
+            )
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Turn on anyway") { _, _ ->
+                settings.identifySpeakers = true
+                b.identifySwitch.isChecked = true
+                // No point enabling it with no models on disk — offer the
+                // download now rather than letting the next meeting quietly
+                // produce no labels.
+                if (ModelManager.missingSpeaker(this).isNotEmpty()) confirmSpeakerModels()
+            }
+            .show()
+    }
+
+    private fun showCheckIn() {
+        b.checkInValue.text = checkInLabel(settings.checkInMinutes)
+    }
+
+    private fun checkInLabel(minutes: Int): String = when {
+        minutes <= 0 -> "Never"
+        minutes % 60 == 0 && minutes >= 60 ->
+            if (minutes == 60) "Every hour" else "Every ${minutes / 60} hours"
+        else -> "Every $minutes min"
+    }
+
+    /**
+     * "Never" stays available, and is not a trap to be talked out of. Someone
+     * recording a two-hour lecture from a pocket has no way to answer a prompt,
+     * and for them the check-in is the bug. The dialog says what the setting
+     * protects against so the choice is an informed one.
+     */
+    private fun chooseCheckIn() {
+        val choices = Settings.CHECK_IN_CHOICES
+        val current = choices.indexOf(settings.checkInMinutes).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Check in during long recordings")
+            .setSingleChoiceItems(
+                choices.map { checkInLabel(it) }.toTypedArray(), current
+            ) { dialog, which ->
+                dialog.dismiss()
+                settings.checkInMinutes = choices[which]
+                showCheckIn()
             }
             .setNegativeButton("Cancel", null)
             .show()

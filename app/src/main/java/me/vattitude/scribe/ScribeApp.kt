@@ -46,11 +46,29 @@ class ScribeApp : Application() {
                     enableVibration(false)
                 }
             )
+            // HIGH, unlike the other two, and deliberately.
+            //
+            // The recording notification is silent because it says nothing that
+            // needs answering. This one does: ignore it and the recording
+            // pauses. A silent prompt with a deadline is a trap, so this is the
+            // one notification in the app allowed to make noise.
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_CHECK_IN,
+                    getString(R.string.channel_check_in),
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Asks whether a long recording should keep going"
+                    setShowBadge(true)
+                    enableVibration(true)
+                }
+            )
         }
     }
 
     companion object {
         const val CHANNEL_RECORDING = "recording"
         const val CHANNEL_TRANSCRIBE = "transcribe"
+        const val CHANNEL_CHECK_IN = "check_in"
     }
 }

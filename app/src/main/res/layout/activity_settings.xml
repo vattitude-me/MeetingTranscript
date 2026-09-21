@@ -46,6 +46,38 @@
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
+            <!-- ── Recording ─────────────────────────────────────────── -->
+            <TextView style="@style/SettingsHeader" android:text="@string/settings_recording" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/surface_card"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:padding="4dp">
+
+                <LinearLayout
+                    android:id="@+id/checkInRow"
+                    style="@style/SettingsRow">
+
+                    <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_mic" />
+
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="@string/check_in" />
+                        <TextView style="@style/SettingsRowSub" android:text="@string/check_in_sub" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/checkInValue"
+                        style="@style/SettingsRowSub"
+                        android:layout_width="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <!-- ── Your data ─────────────────────────────────────────── -->
             <TextView style="@style/SettingsHeader" android:text="@string/settings_data" />
 
@@ -101,10 +133,62 @@
                 android:padding="4dp">
 
                 <LinearLayout
-                    android:id="@+id/speakerRow"
+                    android:id="@+id/identifyRow"
                     style="@style/SettingsRow">
 
                     <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_people" />
+
+                    <LinearLayout style="@style/SettingsRowText">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                style="@style/SettingsRowTitle"
+                                android:layout_width="wrap_content"
+                                android:text="@string/identify_speakers" />
+
+                            <!-- Beside the name, not buried in the subtitle: the
+                                 warning has to be visible to someone skimming
+                                 the switch, not only to someone reading it. -->
+                            <TextView
+                                style="@style/SettingsRowSub"
+                                android:layout_width="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:paddingStart="6dp"
+                                android:paddingEnd="6dp"
+                                android:background="@drawable/surface_card"
+                                android:textStyle="bold"
+                                android:textAllCaps="true"
+                                android:text="@string/beta" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/identifySub"
+                            style="@style/SettingsRowSub"
+                            android:text="@string/identify_speakers_sub" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/identifySwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp"
+                        android:clickable="false"
+                        android:focusable="false" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout
+                    android:id="@+id/speakerRow"
+                    style="@style/SettingsRow">
+
+                    <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_download" />
 
                     <LinearLayout style="@style/SettingsRowText">
                         <TextView style="@style/SettingsRowTitle" android:text="@string/speaker_models" />

@@ -18,6 +18,7 @@ import me.vattitude.scribe.capture.Recording
 import me.vattitude.scribe.capture.RecordingState
 import me.vattitude.scribe.databinding.ActivityRecordingBinding
 import me.vattitude.scribe.store.Repo
+import me.vattitude.scribe.store.Settings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -259,12 +260,19 @@ class RecordingActivity : AppCompatActivity() {
      *
      * Why ask at all, when the app could just guess: measured across a
      * ten-sample matrix, guessing was wrong in both directions — a single voice
-     * came back as six, five voices came back as three. Told the true count, it
-     * was right on every sample. See DiarizeEngine.
+     * came back as six, five voices came back as three. Told the true count it
+     * did better, though later measurement on a realistic ten-person meeting
+     * showed it can ignore the count outright. See Settings.identifySpeakers.
+     *
+     * Skipped entirely when speaker separation is off, which is the default.
+     * Asking a question whose answer is then never used is worse than not
+     * asking: it costs a tap at the end of every meeting and implies the app
+     * is doing something it is not.
      */
     private fun askSpeakerCount() {
         val id = stoppedMeetingId
         if (id < 0) return
+        if (!Settings(this).identifySpeakers) { finish(); return }
         asking = true
         val options = (1..8).map { if (it == 1) "1 person (just me)" else "$it people" } +
             "Not sure — let the app decide"
@@ -272,7 +280,10 @@ class RecordingActivity : AppCompatActivity() {
         // message OR a list, never both, so setting one silently swallowed the
         // other and shipped a chooser with nothing to choose from.
         AlertDialog.Builder(this)
-            .setTitle("How many people spoke?\nOptional \u2014 improves speaker labels")
+            .setTitle(
+                "Who did most of the talking?\n" +
+                    "Optional \u2014 helps speaker labels, which are in beta and often wrong"
+            )
             .setItems(options.toTypedArray()) { _, which ->
                 if (which != options.lastIndex) {
                     val count = which + 1

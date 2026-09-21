@@ -21,6 +21,7 @@ import me.vattitude.scribe.store.AudioRetention
 import me.vattitude.scribe.store.Line
 import me.vattitude.scribe.store.MeetingState
 import me.vattitude.scribe.store.Repo
+import me.vattitude.scribe.store.Settings
 import androidx.core.app.TaskStackBuilder
 import me.vattitude.scribe.ui.MainActivity
 import me.vattitude.scribe.ui.MeetingDetailActivity
@@ -172,7 +173,12 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             // retention policy has deleted the recording. Doing it inside the
             // same pass is what keeps "delete audio after transcribing" safe to
             // leave ON by default.
-            if (DiarizeEngine.isReady(applicationContext) && finalLines.isNotEmpty()) {
+            // Off unless the user asked for it — see Settings.identifySpeakers
+            // for what the measurement showed. A meeting transcribed with this
+            // off simply has no speaker labels, which is the honest outcome.
+            if (Settings(applicationContext).identifySpeakers &&
+                DiarizeEngine.isReady(applicationContext) && finalLines.isNotEmpty()
+            ) {
                 runCatching { diarize(repo, meetingId, segments, finalLines) }
                     .onFailure { Log.w(TAG, "diarization failed for $meetingId", it) }
                 finalLines = repo.lines(meetingId)
@@ -182,10 +188,15 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             //
             // It used to be deleted the instant this pass finished, which made
             // the window where both exist as short as possible. That was the
-            // right instinct and the wrong result: speaker separation reads
-            // waveforms, the count it guesses is often wrong, and deleting the
-            // audio froze that wrong count permanently. "Fix speaker count"
-            // could never run on default settings.
+            // right instinct and the wrong result: deleting the audio freezes
+            // the transcript at whatever this pass produced, permanently.
+            //
+            // The grace period was added for the speaker count, which is now off
+            // by default — but it is worth keeping on its own merits, and is
+            // deliberately not gated on that setting. It is what allows a
+            // meeting to be re-transcribed with a better model, a line to be
+            // heard back, and speaker separation to be tried at all on a
+            // recording made before the user turned it on.
             //
             // AudioRetention.sweep collects it once the window closes. Sweeping
             // here too means a run of meetings still collects the earlier ones
