@@ -39,6 +39,30 @@ class RecorderService : Service() {
 
     private var recorder: AudioRecord? = null
     @Volatile private var running = false
+
+    /**
+     * Set while the recording is paused for a break.
+     *
+     * The capture loop keeps reading from AudioRecord while this is true and
+     * throws the buffers away rather than stopping the hardware. Stopping and
+     * restarting AudioRecord mid-meeting risks the device handing back a
+     * different route or failing to reopen at all -- losing the rest of the
+     * meeting to save a few milliamps is the wrong trade. Draining the reads
+     * also keeps the ring buffer from overrunning while paused.
+     *
+     * Paused audio is never written, so it does not exist in the file and
+     * cannot reach the transcript. Elapsed time is derived from bytes written,
+     * which means the timer stops on its own without a second clock to keep in
+     * sync.
+     */
+    @Volatile private var paused = false
+
+    /** When the current recording started, for reposting the notification. */
+    private var notifStartedAt = 0L
+
+    /** Total time spent paused, so the notification clock can skip it. */
+    private var pausedTotalMs = 0L
+    private var pausedSince = 0L
     private var worker: Thread? = null
     private var meetingId = -1L
 
@@ -47,6 +71,8 @@ class RecorderService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> { stopRecording(); return START_NOT_STICKY }
+            ACTION_PAUSE -> setPaused(true)
+            ACTION_RESUME -> setPaused(false)
             else -> startRecording()
         }
         return START_STICKY
@@ -61,6 +87,10 @@ class RecorderService : Service() {
         // metadata line, so a timestamp title was the same string twice and told
         // you nothing a week later. The UI renders "Untitled meeting" until the
         // first transcribed sentence drafts a real one.
+        notifStartedAt = startedAt
+        pausedTotalMs = 0
+        pausedSince = 0
+        paused = false
         val title = ""
         val dir = File(File(filesDir, "meetings"), startedAt.toString())
         val repo = Repo(this)
@@ -126,6 +156,27 @@ class RecorderService : Service() {
             while (running) {
                 val n = rec.read(buf, 0, buf.size)
                 if (n <= 0) continue
+
+                // Paused: the read still happens, so the ring buffer keeps
+                // draining, but the samples go nowhere. Nothing is written, the
+                // live pass is not fed, and the meter is pinned to zero -- a
+                // paused recording should look silent, not frozen mid-level.
+                if (paused) {
+                    // Silence is not accumulated while paused: it measures
+                    // whether the mic is working, and a deliberate pause is not
+                    // evidence that it is not. Left running, a five-minute break
+                    // would raise "hearing nothing" the moment you resumed.
+                    silentMs = 0
+                    RecordingState.set(
+                        Recording(
+                            meetingId, startedAt,
+                            Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE),
+                            0f, 0, paused = true
+                        )
+                    )
+                    continue
+                }
+
                 writer.write(buf, n)
                 live?.offer(buf, n)
 
@@ -206,6 +257,30 @@ class RecorderService : Service() {
         }
     }
 
+    /**
+     * Pauses or resumes, and reposts the notification so its button matches.
+     *
+     * Ignored when not recording: a stale Pause tap from an old notification
+     * must not start anything. Flushes on pause so the audio up to the break is
+     * already durable if the break turns out to be the end of the meeting.
+     */
+    private fun setPaused(value: Boolean) {
+        if (!running || paused == value) return
+        val now = System.currentTimeMillis()
+        if (value) {
+            pausedSince = now
+        } else if (pausedSince > 0) {
+            // Push the chronometer's anchor forward by the length of the break,
+            // so it resumes from where it stopped instead of counting the pause.
+            pausedTotalMs += now - pausedSince
+            pausedSince = 0
+        }
+        paused = value
+        RecordingState.state.value?.let { RecordingState.set(it.copy(paused = value)) }
+        NotificationManagerCompat.from(this).notify(NOTIF_ID, buildNotification(notifStartedAt, quiet = false))
+        ScribeWidget.refresh(this)
+    }
+
     private fun stopRecording() {
         running = false
         worker?.join(5_000)
@@ -230,17 +305,45 @@ class RecorderService : Service() {
             this, 1, Intent(this, RecorderService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+        // One button that flips, rather than a Pause and a Resume side by side:
+        // only one of them is ever valid, and a notification row has little
+        // space to waste on a control that does nothing.
+        val toggle = PendingIntent.getService(
+            this, 2,
+            Intent(this, RecorderService::class.java)
+                .setAction(if (paused) ACTION_RESUME else ACTION_PAUSE),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val title = when {
+            paused -> "Paused"
+            quiet -> "Recording \u2014 hearing nothing"
+            else -> "Recording meeting"
+        }
+        val text = when {
+            paused -> "Nothing is being recorded"
+            quiet -> "Check the mic isn't covered"
+            else -> null
+        }
         return NotificationCompat.Builder(this, ScribeApp.CHANNEL_RECORDING)
-            .setContentTitle(if (quiet) "Recording \u2014 hearing nothing" else "Recording meeting")
-            .setContentText(if (quiet) "Check the mic isn't covered" else null)
+            .setContentTitle(title)
+            .setContentText(text)
             .setSmallIcon(R.drawable.ic_mic)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            // Android ticks this itself, once a second, smoothly.
-            .setUsesChronometer(true)
-            .setWhen(startedAt)
-            .setShowWhen(true)
+            // Android ticks this itself, once a second, smoothly. While paused
+            // it is switched off rather than left running: a clock that keeps
+            // counting would claim time that is not in the recording.
+            .setUsesChronometer(!paused)
+            // Anchored forward by the time spent paused, so the count resumes
+            // where it stopped instead of jumping by the length of the break.
+            .setWhen(startedAt + pausedTotalMs)
+            .setShowWhen(!paused)
             .setContentIntent(open)
+            .addAction(
+                if (paused) R.drawable.ic_mic else R.drawable.ic_pause,
+                if (paused) "Resume" else "Pause",
+                toggle
+            )
             .addAction(R.drawable.ic_stop, "Stop", stop)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
@@ -249,6 +352,8 @@ class RecorderService : Service() {
     companion object {
         private const val TAG = "RecorderService"
         const val ACTION_STOP = "me.vattitude.scribe.STOP"
+        const val ACTION_PAUSE = "me.vattitude.scribe.PAUSE"
+        const val ACTION_RESUME = "me.vattitude.scribe.RESUME"
         private const val NOTIF_ID = 1001
 
         /**
@@ -271,6 +376,15 @@ class RecorderService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, RecorderService::class.java).setAction(ACTION_STOP))
+        }
+
+        /** Pause or resume the running recording. No-op when nothing is recording. */
+        fun setPaused(context: Context, paused: Boolean) {
+            if (!RecordingState.isRecording) return
+            context.startService(
+                Intent(context, RecorderService::class.java)
+                    .setAction(if (paused) ACTION_PAUSE else ACTION_RESUME)
+            )
         }
     }
 }

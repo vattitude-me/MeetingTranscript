@@ -15,10 +15,12 @@ data class Recording(
      * not a crash, it is coming back after an hour to a file full of nothing,
      * so this is surfaced rather than merely logged.
      */
-    val silentMs: Long = 0
+    val silentMs: Long = 0,
+    /** True while the user has paused for a break; no audio is being written. */
+    val paused: Boolean = false
 ) {
     /** Long enough that a pause in conversation never trips it. */
-    val isWorryinglyQuiet: Boolean get() = silentMs >= QUIET_WARNING_MS
+    val isWorryinglyQuiet: Boolean get() = !paused && silentMs >= QUIET_WARNING_MS
 
     companion object {
         /** Peak amplitude below which a buffer counts as silence, not speech. */

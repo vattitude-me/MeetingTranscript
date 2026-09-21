@@ -54,6 +54,13 @@ class RecordingActivity : AppCompatActivity() {
     /** Keeps the screen alive while the speaker-count question is on it. */
     private var asking = false
     private var startedAt = 0L
+
+    /** Last elapsed figure from the service, and when it arrived. */
+    private var lastElapsedMs = 0L
+    private var lastElapsedAt = 0L
+
+    /** Mirrors the service's pause state, so the ticker knows to hold. */
+    private var paused = false
     private var ticker: Runnable? = null
     private var lastQuiet: Boolean? = null
     private val clockFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
@@ -69,6 +76,11 @@ class RecordingActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         b.stop.setOnClickListener { stop() }
+        b.pause.setOnClickListener {
+            // The service owns the state; this only asks. render() paints the
+            // result, so the button and the notification can never disagree.
+            RecorderService.setPaused(this, RecordingState.state.value?.paused != true)
+        }
         b.levelHint.text = "Starting\u2026"
         b.collapse.setOnClickListener { finish() }
 
@@ -82,13 +94,28 @@ class RecordingActivity : AppCompatActivity() {
     }
 
     /** Repaints the timer once a second regardless of when audio buffers land. */
+    /**
+     * Paints the timer once a second between service updates.
+     *
+     * It counts forward from the last elapsed figure the service published
+     * rather than from wall-clock minus the start time. Wall-clock was wrong in
+     * two ways: it kept counting through a pause, claiming time that is not in
+     * the recording, and it drifted from the audio on disk even while running.
+     * The service's elapsed is derived from bytes written, so it is the length
+     * of the actual recording; this only smooths the ~2s gap between updates.
+     */
     private fun startTicker() {
         ticker = object : Runnable {
             override fun run() {
-                val anchor = startedAt
-                if (anchor > 0) {
-                    b.timer.text =
-                        RecorderService.formatElapsed(System.currentTimeMillis() - anchor)
+                if (lastElapsedMs > 0 || lastElapsedAt > 0) {
+                    // Hold the figure once paused or stopping. Both are states
+                    // where the service has stopped publishing updates, so
+                    // counting wall-clock forward from the last one would invent
+                    // time that is not in the recording -- visibly, behind the
+                    // speaker-count dialog, on a screen that says STOPPING.
+                    val frozen = paused || stopping
+                    val since = if (frozen) 0L else System.currentTimeMillis() - lastElapsedAt
+                    b.timer.text = RecorderService.formatElapsed(lastElapsedMs + since)
                 }
                 b.timer.postDelayed(this, 1000)
             }
@@ -110,9 +137,24 @@ class RecordingActivity : AppCompatActivity() {
             return
         }
         sawRecording = true
+        paused = r.paused
+        b.pause.setImageResource(if (paused) R.drawable.ic_mic else R.drawable.ic_pause)
+        b.pause.contentDescription =
+            getString(if (paused) R.string.resume_recording else R.string.pause_recording)
+        if (paused) {
+            b.statusText.text = "PAUSED"
+            // Stop the blink: a pulsing dot says "live", which is the opposite
+            // of what a paused recording is doing.
+            blink?.pause()
+            b.micDot.alpha = 0.25f
+        } else if (!stopping) {
+            blink?.resume()
+        }
         // Note the anchor and let the ticker render it. Painting the timer from
         // here would inherit the capture loop's ~2s cadence and visibly stutter.
         startedAt = r.startedAt
+        lastElapsedMs = r.elapsedMs
+        lastElapsedAt = System.currentTimeMillis()
         b.meter.push(r.level)
 
         if (b.recMeta.text.isNullOrBlank()) {
@@ -182,6 +224,9 @@ class RecordingActivity : AppCompatActivity() {
         b.stop.isEnabled = false
         b.stop.alpha = 0.5f
         b.statusText.text = "STOPPING\u2026"
+        // Paint the last known length now. The ticker freezes from here, so
+        // whatever is on screen when the dialog opens is what stays there.
+        if (lastElapsedMs > 0) b.timer.text = RecorderService.formatElapsed(lastElapsedMs)
         // Before stopping: the service clears this as it shuts down.
         stoppedMeetingId = RecordingState.state.value?.meetingId ?: -1L
         RecorderService.stop(this)
@@ -214,9 +259,11 @@ class RecordingActivity : AppCompatActivity() {
         asking = true
         val options = (1..8).map { if (it == 1) "1 person (just me)" else "$it people" } +
             "Not sure — let the app decide"
+        // Title carries the hint rather than setMessage(): AlertDialog renders a
+        // message OR a list, never both, so setting one silently swallowed the
+        // other and shipped a chooser with nothing to choose from.
         AlertDialog.Builder(this)
-            .setTitle("How many people spoke?")
-            .setMessage("Optional. It makes the speaker labels much more accurate.")
+            .setTitle("How many people spoke?\nOptional \u2014 improves speaker labels")
             .setItems(options.toTypedArray()) { _, which ->
                 if (which != options.lastIndex) {
                     val count = which + 1

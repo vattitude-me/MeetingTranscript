@@ -212,5 +212,21 @@
             android:scaleType="centerInside"
             android:contentDescription="@string/stop_recording"
             app:tint="@color/s_on_mic" />
+
+        <!-- Beside stop, not level with it. Stop stays the one big unmissable
+             target you can hit from across a desk; pause is deliberate and
+             occasional, so it is smaller and off to the side rather than
+             competing for the same glance. -->
+        <ImageButton
+            android:id="@+id/pause"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_gravity="center_vertical|start"
+            android:layout_marginStart="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_pause"
+            android:scaleType="centerInside"
+            android:contentDescription="@string/pause_recording"
+            app:tint="@color/s_text_muted" />
     </FrameLayout>
 </LinearLayout>
