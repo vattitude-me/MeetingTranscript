@@ -56,7 +56,10 @@ class SettingsActivity : AppCompatActivity() {
             val next = !b.retentionSwitch.isChecked
             b.retentionSwitch.isChecked = next
             settings.deleteAudioAfterTranscribe = next
+            showGrace()
         }
+        showGrace()
+        b.graceRow.setOnClickListener { chooseGrace() }
 
         b.speakerRow.setOnClickListener { confirmSpeakerModels() }
         b.audioRow.setOnClickListener { confirmClearAudio() }
@@ -177,6 +180,48 @@ class SettingsActivity : AppCompatActivity() {
      * archive is kilobytes, the same archive with audio is hundreds of megabytes.
      * That is too big a difference to decide for someone.
      */
+    /**
+     * The grace window is only meaningful when audio is being deleted at all.
+     * With the switch off nothing expires, so showing a duration there would
+     * describe a rule that is not running.
+     */
+    private fun showGrace() {
+        val on = settings.deleteAudioAfterTranscribe
+        b.graceRow.isEnabled = on
+        b.graceRow.alpha = if (on) 1f else 0.4f
+        b.graceValue.text = graceLabel(settings.audioGraceHours)
+    }
+
+    private fun graceLabel(hours: Int): String = when (hours) {
+        0 -> "Immediately"
+        1 -> "1 hour"
+        else -> "$hours hours"
+    }
+
+    /**
+     * "Immediately" is kept as an option rather than removed: it is what the app
+     * did before, and a user who wants the audio gone the second it is
+     * transcribed should not have to turn off deletion entirely to say so. It
+     * costs them the ability to fix a wrong speaker count, which the subtitle
+     * on this row says plainly.
+     */
+    private fun chooseGrace() {
+        if (!settings.deleteAudioAfterTranscribe) return
+        val choices = listOf(0, 1, 6, 12, 24, 48)
+        val current = choices.indexOf(settings.audioGraceHours).coerceAtLeast(0)
+        AlertDialog.Builder(this)
+            .setTitle("Keep audio for")
+            .setSingleChoiceItems(
+                choices.map { graceLabel(it) }.toTypedArray(), current
+            ) { dialog, which ->
+                dialog.dismiss()
+                settings.audioGraceHours = choices[which]
+                showGrace()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
     private fun chooseExportScope() {
         lifecycleScope.launch {
             val audio = withContext(Dispatchers.IO) { Settings.audioBytes(this@SettingsActivity) }

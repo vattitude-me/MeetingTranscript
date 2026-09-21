@@ -17,10 +17,10 @@ import kotlinx.coroutines.withContext
 import me.vattitude.scribe.R
 import me.vattitude.scribe.ScribeApp
 import me.vattitude.scribe.capture.Audio
+import me.vattitude.scribe.store.AudioRetention
 import me.vattitude.scribe.store.Line
 import me.vattitude.scribe.store.MeetingState
 import me.vattitude.scribe.store.Repo
-import me.vattitude.scribe.store.Settings
 import androidx.core.app.TaskStackBuilder
 import me.vattitude.scribe.ui.MainActivity
 import me.vattitude.scribe.ui.MeetingDetailActivity
@@ -178,12 +178,21 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
                 finalLines = repo.lines(meetingId)
             }
 
-            // The audio has done its job. Dropping it here rather than on a timer
-            // means the window where both exist is as short as it can be, and only
-            // ever closes on success — a failed pass keeps its audio to retry from.
-            if (Settings(applicationContext).deleteAudioAfterTranscribe && finalLines.isNotEmpty()) {
-                runCatching { meeting.segmentDir.deleteRecursively() }
-                    .onFailure { Log.w(TAG, "could not delete audio for $meetingId", it) }
+            // The audio is kept for a grace period rather than deleted here.
+            //
+            // It used to be deleted the instant this pass finished, which made
+            // the window where both exist as short as possible. That was the
+            // right instinct and the wrong result: speaker separation reads
+            // waveforms, the count it guesses is often wrong, and deleting the
+            // audio froze that wrong count permanently. "Fix speaker count"
+            // could never run on default settings.
+            //
+            // AudioRetention.sweep collects it once the window closes. Sweeping
+            // here too means a run of meetings still collects the earlier ones
+            // without waiting for the next app launch.
+            if (finalLines.isNotEmpty()) {
+                runCatching { AudioRetention.sweep(applicationContext) }
+                    .onFailure { Log.w(TAG, "retention sweep failed", it) }
             }
 
             val done = repo.meeting(meetingId)

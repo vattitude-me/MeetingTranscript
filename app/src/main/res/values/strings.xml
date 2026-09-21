@@ -40,6 +40,8 @@
 
     <string name="delete_audio">Delete audio after transcribing</string>
     <string name="delete_audio_sub">Recommended. The transcript is kept; only the recording is removed, and only once it has been transcribed.</string>
+    <string name="audio_grace">Keep audio for</string>
+    <string name="audio_grace_sub">A short window to fix the speaker count before the recording is removed. Separating voices again needs the audio.</string>
     <string name="clear_audio">Clear recorded audio</string>
     <string name="clear_audio_sub">Frees space. Transcripts stay.</string>
     <string name="clear_all">Delete everything</string>

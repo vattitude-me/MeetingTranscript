@@ -152,6 +152,27 @@
                 <View style="@style/SettingsDivider" />
 
                 <LinearLayout
+                    android:id="@+id/graceRow"
+                    style="@style/SettingsRow">
+
+                    <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_shield" />
+
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="@string/audio_grace" />
+                        <TextView style="@style/SettingsRowSub" android:text="@string/audio_grace_sub" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/graceValue"
+                        style="@style/SettingsRowSub"
+                        android:layout_width="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout
                     android:id="@+id/audioRow"
                     style="@style/SettingsRow">
 

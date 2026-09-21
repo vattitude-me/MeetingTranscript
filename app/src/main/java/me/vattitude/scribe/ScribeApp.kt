@@ -5,14 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import me.vattitude.scribe.asr.ModelManager
+import me.vattitude.scribe.store.AudioRetention
 
 class ScribeApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        // Reclaim superseded model downloads off the main thread.
-        Thread { runCatching { ModelManager.pruneOldModels(this) } }.start()
+        // Reclaim superseded model downloads off the main thread, and collect
+        // the audio of meetings whose retention window has closed. Both touch
+        // the filesystem, so neither belongs on the main thread; both are safe
+        // to repeat and safe to miss, so a failure is swallowed rather than
+        // retried. See AudioRetention for why the sweep runs here rather than
+        // on a schedule.
+        Thread {
+            runCatching { ModelManager.pruneOldModels(this) }
+            runCatching { AudioRetention.sweep(this) }
+        }.start()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val nm = getSystemService(NotificationManager::class.java)
             nm.createNotificationChannel(

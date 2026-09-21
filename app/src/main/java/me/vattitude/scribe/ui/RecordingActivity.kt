@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -16,6 +17,7 @@ import me.vattitude.scribe.capture.RecorderService
 import me.vattitude.scribe.capture.Recording
 import me.vattitude.scribe.capture.RecordingState
 import me.vattitude.scribe.databinding.ActivityRecordingBinding
+import me.vattitude.scribe.store.Repo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -38,6 +40,19 @@ class RecordingActivity : AppCompatActivity() {
 
     /** Guards against closing before the service has published its first state. */
     private var sawRecording = false
+
+    /**
+     * The meeting being recorded, captured when stop is pressed.
+     *
+     * Read at stop() time rather than when the dialog is answered: the service
+     * clears RecordingState within a second of being asked to stop, so by the
+     * time the user has chosen a number there is no state left to read the id
+     * from, and the answer would be written nowhere.
+     */
+    private var stoppedMeetingId = -1L
+
+    /** Keeps the screen alive while the speaker-count question is on it. */
+    private var asking = false
     private var startedAt = 0L
     private var ticker: Runnable? = null
     private var lastQuiet: Boolean? = null
@@ -87,7 +102,11 @@ class RecordingActivity : AppCompatActivity() {
             // in the same breath as starting it. Closing on the first null would
             // dump the user straight back to the list, which is what it did.
             // Only treat null as "stopped" once we have actually seen it running.
-            if (sawRecording && !isFinishing) finish()
+            // Not while the speaker-count dialog is up. The service clears the
+            // recording state almost immediately after stop(), so finishing on
+            // that signal would tear the question off the screen before it
+            // could be read, let alone answered.
+            if (sawRecording && !isFinishing && !asking) finish()
             return
         }
         sawRecording = true
@@ -163,14 +182,67 @@ class RecordingActivity : AppCompatActivity() {
         b.stop.isEnabled = false
         b.stop.alpha = 0.5f
         b.statusText.text = "STOPPING\u2026"
+        // Before stopping: the service clears this as it shuts down.
+        stoppedMeetingId = RecordingState.state.value?.meetingId ?: -1L
         RecorderService.stop(this)
         // Do not finish() here: wait for the service to actually clear the state,
         // so the user never sees the screen vanish on a stop that failed.
+        askSpeakerCount()
+    }
+
+    /**
+     * Asks how many people spoke, once, right after the stop button is pressed.
+     *
+     * This is the one moment the answer is both known and cheap to give: the
+     * user just sat through the meeting and is still holding the phone. Asked
+     * later, from the transcript, it costs a re-run of speaker separation and
+     * relies on the audio still being there.
+     *
+     * The count is only a hint, so this never blocks. Dismissing it, backing
+     * out or walking away all leave expected_speakers at 0, which is exactly
+     * the old behaviour — the clusterer guesses. Transcription has already been
+     * handed to the service and does not wait for this.
+     *
+     * Why ask at all, when the app could just guess: measured across a
+     * ten-sample matrix, guessing was wrong in both directions — a single voice
+     * came back as six, five voices came back as three. Told the true count, it
+     * was right on every sample. See DiarizeEngine.
+     */
+    private fun askSpeakerCount() {
+        val id = stoppedMeetingId
+        if (id < 0) return
+        asking = true
+        val options = (1..8).map { if (it == 1) "1 person (just me)" else "$it people" } +
+            "Not sure — let the app decide"
+        AlertDialog.Builder(this)
+            .setTitle("How many people spoke?")
+            .setMessage("Optional. It makes the speaker labels much more accurate.")
+            .setItems(options.toTypedArray()) { _, which ->
+                if (which != options.lastIndex) {
+                    val count = which + 1
+                    // applicationContext: this activity finishes the moment the
+                    // dialog closes, and the write must outlive it.
+                    val app = applicationContext
+                    Thread { runCatching { Repo(app).setExpectedSpeakers(id, count) } }.start()
+                }
+            }
+            .setNegativeButton("Skip", null)
+            // Every exit runs through here — a choice, Skip, or a tap outside —
+            // so the screen closes exactly once however the question is ended.
+            .setOnDismissListener {
+                asking = false
+                if (!isFinishing) finish()
+            }
+            .show()
     }
 
     override fun onDestroy() {
         ticker?.let { b.timer.removeCallbacks(it) }
         blink?.cancel()
+        // The dialog's dismiss listener calls finish(); if the activity is
+        // already going away (the user backed out, or the system took it), that
+        // listener must not act on a dead window.
+        asking = false
         super.onDestroy()
     }
 
