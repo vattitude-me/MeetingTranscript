@@ -53,6 +53,29 @@ class Settings(context: Context) {
         now - startedAt >= audioGraceHours * 3_600_000L
 
     /**
+     * Transcribe closed segments while the meeting is still recording.
+     *
+     * On by default. A 30-minute meeting used to produce nothing until it was
+     * stopped and then transcribed from a standing start; this spreads that
+     * work across the recording, so stopping a long meeting leaves minutes of
+     * work rather than the whole thing.
+     *
+     * It is a setting rather than unconditional because it is the one feature
+     * that runs the large model on a phone that is mid-recording. Nothing
+     * measured says it costs a recording — it reads only closed segment files,
+     * at minimum thread priority, on one inference thread — but "the recording
+     * is unaffected" is a claim about a phone under memory pressure with an
+     * unknown number of other apps running, and a switch is cheaper than being
+     * wrong about that on someone's only copy of a meeting.
+     *
+     * Turning it off restores exactly the old behaviour: everything happens
+     * after the recording stops.
+     */
+    var transcribeWhileRecording: Boolean
+        get() = prefs.getBoolean(KEY_EARLY_TRANSCRIBE, true)
+        set(v) = prefs.edit().putBoolean(KEY_EARLY_TRANSCRIBE, v).apply()
+
+    /**
      * Whether to attempt speaker separation at all. **Off by default.**
      *
      * It was on, and the default was wrong. The evidence that turned it off is
@@ -111,6 +134,7 @@ class Settings(context: Context) {
         private const val KEY_GRACE_HOURS = "audio_grace_hours"
         private const val KEY_CHECK_IN_MINUTES = "check_in_minutes"
         private const val KEY_IDENTIFY_SPEAKERS = "identify_speakers"
+        private const val KEY_EARLY_TRANSCRIBE = "transcribe_while_recording"
 
         /**
          * 30 minutes, which is the length of the meeting this app is mostly

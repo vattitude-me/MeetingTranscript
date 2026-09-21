@@ -56,6 +56,8 @@
     <string name="settings_recording">Recording</string>
     <string name="check_in">Check in during long recordings</string>
     <string name="check_in_sub">Asks whether to keep going, and pauses if there is no answer. Guards against a recording left running after everyone has left.</string>
+    <string name="early_transcribe">Transcribe while recording</string>
+    <string name="early_transcribe_sub">Works through the meeting as it goes, so a long recording is mostly transcribed by the time you stop it. Turn off if the phone struggles.</string>
     <string name="settings_speakers">Speakers</string>
     <string name="beta">Beta</string>
     <string name="identify_speakers">Identify speakers</string>

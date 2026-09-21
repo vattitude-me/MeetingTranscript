@@ -16,6 +16,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import me.vattitude.scribe.R
 import me.vattitude.scribe.ScribeApp
+import me.vattitude.scribe.asr.EarlyTranscriber
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.asr.TranscribeWorker
 import me.vattitude.scribe.store.Repo
@@ -171,6 +172,15 @@ class RecorderService : Service() {
         // If the queue backs up we drop from the live view, never from the file.
         val live = LiveTranscriber(this, repo, meetingId).takeIf { it.start() }
 
+        // The accurate pass, started early, on segments that have already
+        // closed. It writes final lines while the meeting is still running, so
+        // a long recording is largely transcribed by the time it is stopped.
+        // Reads only from disk and never touches anything this loop holds --
+        // see EarlyTranscriber for what keeps it out of the recording's way.
+        if (Settings(this).transcribeWhileRecording) {
+            EarlyTranscriber.start(this, meetingId, dir)
+        }
+
         rec.startRecording()
         try {
             while (running) {
@@ -277,6 +287,11 @@ class RecorderService : Service() {
             NotificationManagerCompat.from(this).cancel(CHECK_IN_NOTIF_ID)
 
             val liveLines = live?.stop() ?: 0
+            // Before writer.close() and finishRecording: the early pass writes
+            // segments_done, and the offline pass resumes from it. Letting it
+            // commit after the meeting is marked finished would race the worker
+            // that is about to read that number.
+            EarlyTranscriber.stop()
 
             val segments = writer.close()
             val durationMs = Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE)

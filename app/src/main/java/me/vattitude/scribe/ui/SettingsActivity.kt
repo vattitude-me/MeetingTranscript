@@ -62,6 +62,16 @@ class SettingsActivity : AppCompatActivity() {
         showGrace()
         b.graceRow.setOnClickListener { chooseGrace() }
 
+        // Takes effect on the next recording, not this one: the capture loop
+        // reads it once at start, so flipping it mid-meeting cannot stop or
+        // start a pass that is already under way.
+        b.earlySwitch.isChecked = settings.transcribeWhileRecording
+        b.earlyRow.setOnClickListener {
+            val next = !b.earlySwitch.isChecked
+            b.earlySwitch.isChecked = next
+            settings.transcribeWhileRecording = next
+        }
+
         showCheckIn()
         b.checkInRow.setOnClickListener { chooseCheckIn() }
 

@@ -76,7 +76,13 @@ class TranscribeWorker(context: Context, params: WorkerParameters) :
             // The live pass may have left a rough transcript behind. Drop it now
             // that the model it will be replaced by has actually loaded — clearing
             // any earlier would leave the meeting blank if loading then failed.
-            // Only on a fresh run: a resumed run is extending its own output.
+            //
+            // Only on a fresh run. segmentsDone > 0 means accurate lines already
+            // exist for those segments — written either by an interrupted run of
+            // this worker or by EarlyTranscriber during the recording — and the
+            // loop below resumes after them. Clearing here would delete finished
+            // work and leave the transcript missing its first minutes, because
+            // the loop would not redo the segments it is about to skip.
             if (meeting.segmentsDone == 0) repo.clearLines(meetingId)
             var idx = repo.nextLineIdx(meetingId)
 

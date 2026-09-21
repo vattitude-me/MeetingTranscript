@@ -59,6 +59,29 @@
                 android:padding="4dp">
 
                 <LinearLayout
+                    android:id="@+id/earlyRow"
+                    style="@style/SettingsRow">
+
+                    <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_clock" />
+
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="@string/early_transcribe" />
+                        <TextView style="@style/SettingsRowSub" android:text="@string/early_transcribe_sub" />
+                    </LinearLayout>
+
+                    <com.google.android.material.materialswitch.MaterialSwitch
+                        android:id="@+id/earlySwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginStart="8dp"
+                        android:clickable="false"
+                        android:focusable="false" />
+                </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout
                     android:id="@+id/checkInRow"
                     style="@style/SettingsRow">
 
