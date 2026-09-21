@@ -33,30 +33,74 @@ import java.io.File
  *   adb shell am start -n me.vattitude.scribe.debug/me.vattitude.scribe.debug.DiarizeSweep \
  *     --es file single_speaker.pcm --ei expect 1
  *
+ * Or sweep a whole matrix in one run, which is what you want when each pass
+ * costs minutes — `files` is comma-separated `name:truth` pairs:
+ *
+ *   ... --es files "m1_long.pcm:1,m2_long.pcm:2,m3_mid.pcm:3"
+ *
  * Reads filesDir/<file> (16 kHz mono PCM16), default scribe_test.pcm.
  * `expect` is the true number of voices, used only to mark the log.
+ *
+ * Results are appended to filesDir/sweep_results.txt as well as logged.
+ * logcat's ring buffer is small and any `logcat -c` anywhere wipes it, which
+ * has already cost one 25-minute run; a file cannot be lost that way.
  */
 class DiarizeSweep : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val name = intent.getStringExtra("file") ?: "scribe_test.pcm"
-        val expect = intent.getIntExtra("expect", 0)
-        val file = File(filesDir, name)
-        if (!file.exists()) {
-            Log.e(TAG, "no test audio at ${file.absolutePath}")
-            finish()
-            return
+        // Either one file, or a whole matrix of "name:truth" pairs.
+        val batch = intent.getStringExtra("files")
+        val jobs: List<Pair<String, Int>> = if (batch != null) {
+            batch.split(",").mapNotNull { spec ->
+                val bits = spec.trim().split(":")
+                if (bits.size == 2) bits[0] to (bits[1].toIntOrNull() ?: 0) else null
+            }
+        } else {
+            listOf((intent.getStringExtra("file") ?: "scribe_test.pcm")
+                to intent.getIntExtra("expect", 0))
         }
 
         CoroutineScope(Dispatchers.Default).launch {
+            for ((name, expect) in jobs) {
+                val file = File(filesDir, name)
+                if (!file.exists()) {
+                    record("SKIP $name: not at ${file.absolutePath}")
+                    continue
+                }
+                runCatching { sweepOne(file, name, expect) }
+                    .onFailure { record("FAIL $name: $it") }
+            }
+            record("=== all sweeps done ===")
+            finish()
+        }
+    }
+
+    /** Appends to the results file and logs, so a cleared buffer costs nothing. */
+    private fun record(line: String) {
+        Log.i(TAG, line)
+        runCatching {
+            File(filesDir, "sweep_results.txt").appendText(line + "\n")
+        }
+    }
+
+    private fun sweepOne(file: File, name: String, expect: Int) {
+        run {
             val samples = readPcm(file)
-            Log.i(TAG, "=== $name: ${samples.size / 16000f}s, expecting $expect voices ===")
+            record("=== $name: ${samples.size / 16000f}s, expecting $expect voices ===")
 
             // Wider and lower than the original sweep. The first pass only went
             // down to 0.5 and picked 0.8, which over-splits a single speaker
             // badly over several minutes.
-            for (threshold in listOf(0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f)) {
+            //
+            // `--ei quick 1` skips the sweep and measures only the two things
+            // the shipped app actually does: the guessing fallback at its real
+            // default, and numClusters. A full sweep is 8 passes per file, and
+            // at two minutes a pass a ten-file matrix does not finish.
+            val quick = intent.getIntExtra("quick", 0) == 1
+            val grid = if (quick) listOf(DiarizeEngine.DEFAULT_THRESHOLD)
+                       else listOf(0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f)
+            for (threshold in grid) {
                 runCatching {
                     val started = System.currentTimeMillis()
                     val turns = DiarizeEngine
@@ -73,13 +117,12 @@ class DiarizeSweep : Activity() {
                         .mapValues { (_, ts) -> ts.sumOf { t -> t.endMs - t.startMs } }
                     val total = held.values.sum().coerceAtLeast(1L)
                     val shares = held.toSortedMap().map { (k, v) -> "$k:${100 * v / total}%" }
-                    Log.i(
-                        TAG,
+                    record(
                         "threshold=$threshold speakers=${speakers.size} $speakers " +
                             "shares=$shares turns=${turns.size} " +
                             "took=${System.currentTimeMillis() - started}ms$mark"
                     )
-                }.onFailure { Log.e(TAG, "threshold=$threshold failed", it) }
+                }.onFailure { record("threshold=$threshold FAILED: $it") }
             }
 
             // With the count known, clustering is told how many to find, which
@@ -90,16 +133,14 @@ class DiarizeSweep : Activity() {
                     val turns = DiarizeEngine
                         .create(this@DiarizeSweep, expectedSpeakers = expect)
                         .use { it.run(samples) }
-                    Log.i(
-                        TAG,
-                        "numClusters=$expect speakers=${turns.map { it.speaker }.distinct().size} " +
-                            "turns=${turns.size} took=${System.currentTimeMillis() - started}ms"
+                    val got = turns.map { it.speaker }.distinct().size
+                    record(
+                        "numClusters=$expect speakers=$got " +
+                            "turns=${turns.size} took=${System.currentTimeMillis() - started}ms" +
+                            if (got == expect) " <-- CORRECT" else " <-- WRONG"
                     )
-                }.onFailure { Log.e(TAG, "numClusters=$expect failed", it) }
+                }.onFailure { record("numClusters=$expect FAILED: $it") }
             }
-
-            Log.i(TAG, "=== sweep done ===")
-            finish()
         }
     }
 
