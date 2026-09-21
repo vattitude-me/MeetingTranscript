@@ -149,6 +149,15 @@ class RecordingActivity : AppCompatActivity() {
             b.micDot.alpha = 0.25f
         } else if (!stopping) {
             blink?.resume()
+            // Undo everything the paused branch overwrote. setQuiet() also
+            // writes this label, but only when the quiet state *changes* — pause
+            // and resume during a steady stretch never trip it, so resuming
+            // would otherwise leave "PAUSED" on screen over a live recording.
+            if (lastQuiet != true) {
+                b.statusText.setText(R.string.mic_live)
+                b.statusText.setTextColor(color(R.color.s_on_mic_container))
+            }
+            b.micDot.alpha = 1f
         }
         // Note the anchor and let the ticker render it. Painting the timer from
         // here would inherit the capture loop's ~2s cadence and visibly stutter.
