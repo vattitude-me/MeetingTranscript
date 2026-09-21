@@ -7,7 +7,7 @@ import ScreenCaptureKit
 // the Android transcriber already eats. 16 kHz, mono, signed 16-bit, little
 // endian, headerless. Same segment layout, so the same reader works.
 //
-//   swift run ScribeCapture [seconds] [output-dir]
+//   swift run MeetingTranscript [seconds] [output-dir]
 //
 // Requires Screen Recording permission. macOS asks the first time; if the
 // binary is rebuilt the grant follows the path, not the build, so it persists.

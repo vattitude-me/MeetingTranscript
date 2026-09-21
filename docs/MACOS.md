@@ -1,4 +1,4 @@
-# Scribe for macOS
+# Meeting Transcript for macOS
 
 **Status:** design, plus a working capture spike in [`mac/`](../mac). Nothing shipped.
 
@@ -14,7 +14,7 @@ downstream of capture already exists and does not need rethinking.
 PLAN.md assumed iOS. It should not have.
 
 iOS gives an app no access to the audio of another app. There is no API for it
-and there is not going to be one; the sandbox is the product. An iOS Scribe
+and there is not going to be one; the sandbox is the product. An iOS build
 could only ever record the room, which means holding a phone up to a laptop
 speaker during a call — worse than the Android app, not better.
 
@@ -28,12 +28,12 @@ they take at a desk, on a Mac, in a browser tab. That is the gap worth filling.
 
 ## 2. What is already proven
 
-`mac/Sources/ScribeCapture/main.swift` is a ~200-line command-line spike. It
+`mac/Sources/MeetingTranscript/main.swift` is a ~200-line command-line spike. It
 captures system audio via ScreenCaptureKit and writes the exact on-disk format
 the Android transcriber already consumes.
 
 ```
-cd mac && swift run ScribeCapture 8 ./out
+cd mac && swift run MeetingTranscript 8 ./out
 ```
 
 Verified on macOS 26.6 / Swift 6.3 / Apple silicon:
