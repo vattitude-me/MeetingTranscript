@@ -33,6 +33,15 @@ import java.io.File
  *   adb shell am start -n me.vattitude.scribe.debug/me.vattitude.scribe.debug.DiarizeSweep \
  *     --es file single_speaker.pcm --ei expect 1
  *
+ * `--es tell "1,2,3"` hands the clusterer counts that are deliberately not the
+ * truth, which measures what a *wrong* answer from the user costs. Measured on
+ * a 62s two-speaker sample: told 1 it returns 1, told 3 it returns 3 with a
+ * spurious 5% third voice, told 4 it returns 3, told 8 it returns 5. An
+ * under-count is obeyed exactly; an over-count is obeyed until the audio runs
+ * out of distinguishable voices, and the extra clusters are small. Nothing
+ * clamps this — MIN_SHARE is skipped whenever a count is supplied, so a wrong
+ * count is followed with no floor to catch it. See DiarizeEngine.dropFragments.
+ *
  * Or sweep a whole matrix in one run, which is what you want when each pass
  * costs minutes — `files` is comma-separated `name:truth` pairs:
  *
@@ -127,19 +136,36 @@ class DiarizeSweep : Activity() {
 
             // With the count known, clustering is told how many to find, which
             // is the mode the app should use whenever the user can tell us.
-            if (expect > 0) {
+            // `tell` is what we hand the clusterer; `expect` stays the ground
+            // truth. They are the same number in a normal run, and deliberately
+            // different when measuring what a *wrong* answer costs — the case
+            // that matters because the count comes from a tired human at the end
+            // of a meeting, not from an oracle.
+            val tells = intent.getStringExtra("tell")
+                ?.split(",")?.mapNotNull { it.trim().toIntOrNull() }
+                ?: listOf(expect)
+            for (tell in tells) {
+                if (tell <= 0) continue
                 runCatching {
                     val started = System.currentTimeMillis()
                     val turns = DiarizeEngine
-                        .create(this@DiarizeSweep, expectedSpeakers = expect)
+                        .create(this@DiarizeSweep, expectedSpeakers = tell)
                         .use { it.run(samples) }
                     val got = turns.map { it.speaker }.distinct().size
+                    val held = turns.groupBy { it.speaker }
+                        .mapValues { (_, ts) -> ts.sumOf { t -> t.endMs - t.startMs } }
+                    val total = held.values.sum().coerceAtLeast(1L)
+                    val shares = held.toSortedMap().map { (k, v) -> "$k:${100 * v / total}%" }
+                    val mark = when {
+                        got == expect -> " <-- MATCHES TRUTH"
+                        got == tell -> " <-- OBEYED (truth was $expect)"
+                        else -> " <-- NEITHER (truth $expect, told $tell)"
+                    }
                     record(
-                        "numClusters=$expect speakers=$got " +
-                            "turns=${turns.size} took=${System.currentTimeMillis() - started}ms" +
-                            if (got == expect) " <-- CORRECT" else " <-- WRONG"
+                        "numClusters=$tell speakers=$got shares=$shares " +
+                            "turns=${turns.size} took=${System.currentTimeMillis() - started}ms$mark"
                     )
-                }.onFailure { record("numClusters=$expect FAILED: $it") }
+                }.onFailure { record("numClusters=$tell FAILED: $it") }
             }
         }
     }
