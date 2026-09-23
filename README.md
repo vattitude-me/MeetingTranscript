@@ -72,8 +72,8 @@ Apple silicon, macOS 14 or newer, and the Xcode Command Line Tools
 (`xcode-select --install`). You don't need Xcode itself or an Apple Developer account.
 
 ```bash
-git clone https://github.com/vattitude-me/scribe.git
-cd scribe/mac
+git clone https://github.com/vattitude-me/MeetingTranscript.git
+cd MeetingTranscript/mac
 scripts/build-app.sh --install          # → ~/Applications/Meeting Transcript.app
 open ~/Applications/"Meeting Transcript.app"
 ```
@@ -224,8 +224,8 @@ Developer account.
 The Android app requires JDK 21 and an Android SDK with platform 35 and build-tools 35.
 
 ```bash
-git clone https://github.com/vattitude-me/scribe.git
-cd scribe
+git clone https://github.com/vattitude-me/MeetingTranscript.git
+cd MeetingTranscript
 ./scripts/setup.sh                                   # fetches the 48 MB sherpa-onnx AAR
 echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleDebug
