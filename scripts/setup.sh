@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetches the prebuilt sherpa-onnx Android AAR that Scribe links against.
+# Fetches the prebuilt sherpa-onnx Android AAR that the Android app links against.
 # It is ~48 MB, so it is not committed.
 set -euo pipefail
 

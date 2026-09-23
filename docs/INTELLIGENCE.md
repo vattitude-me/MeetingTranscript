@@ -179,9 +179,9 @@ and §1 says why that door stays shut.
 |---|---|
 | Verify on a real multi-speaker recording | not done — needs a device test |
 | Measure the time cost on a long meeting | not done, and it decides whether this stays automatic |
-| Ask the speaker count before transcribing | `expectedSpeakers` is far more reliable than a threshold |
+| ~~Ask the speaker count before transcribing~~ | ✅ built — the Stop sheet optionally asks "How many people spoke?", and the count can be corrected later without re-transcribing |
 | Merge two clusters the model split | the most likely user-visible failure |
-| macOS: two capture streams | free "you vs them" without any model — see [MACOS.md](MACOS.md) §3 |
+| ~~macOS: two capture streams~~ | ✅ built — the Mac app labels You / Them from which stream a line came from, no model needed ([MACOS.md](MACOS.md)) |
 | Topics | §7 |
 
 ### Topics
@@ -199,7 +199,7 @@ where an honest answer might be "this needs a model we do not have".
 ## 7. The positioning, in one paragraph
 
 *Your phone's recorder gives you audio and, if you are lucky, a wall of text.
-Scribe gives you a transcript that knows there were four people in the room —
+Meeting Transcript gives you a transcript that knows there were four people in the room —
 who spoke, for how long, who asked the questions and who talked over whom — and
 it does all of it on the phone, with nothing uploaded and no account. Not
 because a server would be hard, but because a meeting recording should only ever

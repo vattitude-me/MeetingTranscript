@@ -5,8 +5,8 @@
 <h1 align="center">Meeting Transcript</h1>
 
 <p align="center">
-  Tap a home-screen widget, record the meeting, get a timestamped transcript.<br>
-  Everything runs on the phone. No audio ever leaves the device.
+  Record a meeting on your Android phone or your Mac, get a timestamped transcript.<br>
+  Everything runs on your device. No audio ever leaves it. No account, no subscription.
 </p>
 
 ---
@@ -16,6 +16,10 @@
 You are on a call on your laptop. You put your phone next to it and tap one widget.
 It records the room, and when you tap stop it turns that audio into a transcript —
 line by line, each with a timestamp, each individually shareable.
+
+On a Mac there is no phone to put anywhere: the menu bar app records the call itself
+(whatever Zoom, Meet or Teams is playing) plus your microphone, and writes the transcript
+while the meeting is still going.
 
 There is no account, no upload, and no network call except the one-time model download.
 
@@ -28,11 +32,21 @@ only ever exist in one place. [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) has t
 version, including what we deliberately do *not* claim.
 
 **Stage 1 (this repo, today): audio → text.**
-**Stage 2 (deliberately out of scope for v0.1): summaries and action points**, produced by
+**Stage 2 (deliberately out of scope): summaries and action points**, produced by
 whatever model or agent you like, from the JSON transcript the app exports. See
 [docs/PLAN.md](docs/PLAN.md) for why the split exists.
 
 ## Install
+
+| | Android | Mac |
+|---|---|---|
+| Get it | APK from [Releases](../../releases) | build from source, free ([below](#on-a-mac)) |
+| Needs | arm64 phone, Android 10+ | Apple silicon, macOS 14+ |
+| Records | the room, through the phone's mic | the call's audio and your mic, separately |
+| Who said what | speaker separation by voice (optional, beta) | **You** / **Them**, from which stream a line came from |
+| Transcript | after the meeting, plus a live preview | live, during the meeting |
+
+### Android
 
 Grab the APK from [Releases](../../releases) and sideload it on an arm64 Android phone
 (Android 10 / API 29 or newer). Built and tested against a Pixel 9.
@@ -53,21 +67,37 @@ transcribes itself once the model is there.
 
 ### On a Mac
 
-There is also a macOS menu bar app in [mac/](mac). It records the call itself (what
-Zoom, Meet or Teams plays) plus your microphone, so headphones are fine, and it labels
-lines **You** and **Them**. It transcribes live with the same Parakeet model, at about
-18× real time on an M3 Pro. It's built from source for free, with no Apple Developer
-account (macOS 14+, Apple silicon, the Xcode Command Line Tools):
+The Mac app is built from source. It is free and takes a couple of minutes. You need
+Apple silicon, macOS 14 or newer, and the Xcode Command Line Tools
+(`xcode-select --install`). You don't need Xcode itself or an Apple Developer account.
 
-```
-cd mac && scripts/build-app.sh --install
+```bash
+git clone https://github.com/vattitude-me/scribe.git
+cd scribe/mac
+scripts/build-app.sh --install          # → ~/Applications/Meeting Transcript.app
 open ~/Applications/"Meeting Transcript.app"
 ```
 
-[mac/README.md](mac/README.md) covers permissions, the command line and keeping
-permission grants across rebuilds.
+On first launch:
+
+1. Click the waveform icon in the menu bar, then **Download (490 MB)**. This fetches
+   the speech model and voice detector, once.
+2. Under **Before your first meeting**, click **Allow** for Microphone and Screen
+   Recording. Screen Recording is how macOS names access to another app's audio.
+   The app takes a 2×2-pixel frame and throws it away. After granting it, quit and
+   reopen the app once.
+3. When the call starts, press **Record meeting**, from the menu bar or the library
+   window (⇧⌘R). Lines appear as people speak, labelled **You** and **Them**.
+
+If you plan to rebuild the app, run `scripts/make-signing-identity.sh` once first,
+so macOS doesn't ask for the permissions again after every build.
+[mac/README.md](mac/README.md) has the details, the command line, and speed
+measurements.
 
 ## Using it
+
+This section is the Android app. The Mac app (menu bar recorder, library window,
+playback, exports, the command line) is covered in [mac/README.md](mac/README.md).
 
 **Recording**
 
@@ -95,7 +125,7 @@ permission grants across rebuilds.
   prompt already attached, so handing a meeting to a model is one paste.
 - Share the whole transcript as `.txt`, or export Markdown, `.json`, `.srt` or `.vtt`.
 - **Speaker labels** appear above a line when the voice changes, once you have turned
-  speaker separation on in Settings (an extra 36 MB download, also offline). Tap a label
+  speaker separation on in Settings (an extra 37 MB download, also offline). Tap a label
   to name that voice; the name applies to every line they spoke and follows the
   transcript into every export. **Conversation** in the menu shows talk time per speaker.
 
@@ -132,7 +162,7 @@ There is no cloud backup, because there is no cloud. If you want a copy, you mak
 
 ### Speakers
 
-Settings → **Identify speakers** downloads two more models (36 MB, once, offline like
+Settings → **Identify speakers** downloads two more models (37 MB, once, offline like
 everything else). After that, each new recording is split into distinct voices as part of
 the same pass that transcribes it.
 
@@ -146,6 +176,8 @@ as transcription. The consequence is that meetings transcribed before you turned
 cannot be relabelled — their audio is already gone.
 
 ## How it works
+
+On Android:
 
 ```
 widget tap
@@ -173,6 +205,11 @@ widget tap
 | Storage | Hand-written `SQLiteOpenHelper` | Two tables; Room's codegen is not worth the build surface |
 | UI | Views + ViewBinding, Material 3 dark theme | Smaller, faster to build, fewer moving parts at v0.1 |
 
+On the Mac the shape is simpler, because Apple silicon is fast enough to drop the
+preview model: each stream is cut into utterances by a voice detector and Parakeet
+transcribes each one as it ends, at about 18× real time. Details and measurements are in
+[docs/MACOS.md](docs/MACOS.md).
+
 Recording and transcription are coupled **only through the disk**. If the recognizer runs
 out of memory, the PCM files are still sitting there and the job picks up at the segment
 it last committed — it does not restart an hour of work. The live preview reads the same
@@ -181,7 +218,10 @@ the accurate pass that runs over it after the meeting — is unaffected.
 
 ## Building it yourself
 
-Requires JDK 21 and an Android SDK with platform 35 and build-tools 35.
+The Mac app: see [mac/README.md](mac/README.md) — one script, no Xcode, no Apple
+Developer account.
+
+The Android app requires JDK 21 and an Android SDK with platform 35 and build-tools 35.
 
 ```bash
 git clone https://github.com/vattitude-me/scribe.git
@@ -232,12 +272,21 @@ upgrade and you will have to uninstall first.
 
 ## Privacy
 
-Audio and transcripts live in the app's private storage. `allowBackup` is off, so nothing
-is copied into a Google backup. The only network traffic the app generates is the model
-download from GitHub.
+On Android, audio and transcripts live in the app's private storage. `allowBackup` is
+off, so nothing is copied into a Google backup. On the Mac, everything is in one folder,
+`~/Library/Application Support/Meeting Transcript`. On both, the only network traffic
+the app generates is the one-time model download from GitHub.
 
 Recording other people has rules that vary by jurisdiction and employer. That part is on you.
 
+## Contributing
+
+Bug reports, measurements from real meetings and pull requests are welcome — open an
+[issue](../../issues). The design documents in [docs/](docs) explain why things are the
+way they are; [docs/PLAN.md](docs/PLAN.md) is the original plan, [docs/MACOS.md](docs/MACOS.md)
+the Mac design, and [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) the speaker and
+conversation features.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).

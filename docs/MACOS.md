@@ -196,11 +196,12 @@ start and then ignore; a Dock icon and a window are ceremony around a toggle.
 - **Main window:** the library — search, read, rename, export. Opened
   deliberately, except on the very first launch: an app launched from Finder
   that shows only a small menu bar icon looks like it failed to open.
-- **During a call:** the live preview, if the streaming model survives §4.
+- **During a call:** the transcript itself, line by line. §4 removed the need for a
+  separate preview.
 
 Everything the Android app learned about first-run applies: recording works
 before the models finish downloading, audio is kept, and it transcribes when
-they land. Do not gate recording on a 615 MB download.
+they land. Do not gate recording on a 490 MB download.
 
 ---
 
@@ -208,7 +209,7 @@ they land. Do not gate recording on a 615 MB download.
 
 Direct download, notarized, outside the App Store.
 
-The App Store is a poor fit and possibly not a fit at all: a 615 MB model
+The App Store is a poor fit and possibly not a fit at all: a 490 MB model
 download on first launch, a Screen Recording entitlement that needs a paragraph
 of explanation, and no in-app purchase to justify review friction. Direct
 distribution also matches the privacy claim — there is no account, so there is

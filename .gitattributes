@@ -1,0 +1,31 @@
+# Line endings: stored as LF, checked out natively, except where a tool needs
+# one specific ending on every OS.
+* text=auto
+
+# Shell scripts must stay LF or they fail on macOS/Linux after a Windows checkout.
+*.sh    text eol=lf
+gradlew text eol=lf
+# Windows batch files need CRLF.
+*.bat   text eol=crlf
+
+# Readable diffs with function context in hunk headers.
+*.kt    text diff=kotlin
+*.kts   text diff=kotlin
+*.java  text diff=java
+*.md    text diff=markdown
+
+# Binaries: never diffed, never converted.
+*.png   binary
+*.jpg   binary
+*.icns  binary
+*.ttf   binary
+*.jar   binary
+*.aar   binary
+*.apk   binary
+*.onnx  binary
+*.pcm   binary
+*.bz2   binary
+
+# GitHub language stats: the HTML/JS design prototype is reference material,
+# not app code.
+docs/design/** linguist-documentation

@@ -13,11 +13,13 @@ shipped; see the note below before trusting any specific claim in here.
 > plan: §3.1's "both passes" live+accurate pipeline, VAD-less but disk-coupled
 > recording, Material 3 UI, and export are all shipped. Still open from here:
 > `:asr` process isolation (§4.2 rule 3 — not implemented, see the README's
-> Known Limits) and diarization (§5's Phase 3). §​6's export formats have since
-> all shipped — markdown, srt, vtt and prompt-ready — along with whole-library
-> backup and restore, which this plan never anticipated. The iOS question in
-> §14 is now answered: **the second platform is macOS, not iOS**, because iOS
-> cannot capture another app's audio. See [MACOS.md](MACOS.md).
+> Known Limits). Diarization (Phase 3) has since shipped as an optional, beta
+> *Identify speakers* setting — see [INTELLIGENCE.md](INTELLIGENCE.md). §​6's
+> export formats have all shipped — markdown, srt, vtt and prompt-ready — along
+> with whole-library backup and restore, which this plan never anticipated. The
+> iOS question in §14 is now answered: **the second platform is macOS, not iOS**,
+> because iOS cannot capture another app's audio. The Mac app exists and is in
+> [`mac/`](../mac); its design is [MACOS.md](MACOS.md).
 > See [README.md](../README.md) for what's actually true of the app today.
 
 - **Stage 1 (this project, v1):** phone sits on the desk beside the work laptop, one-tap widget starts it, records with the screen off for the length of a meeting, and produces a **verbatim, timestamped, line-addressable English transcript** on device. This is the whole deliverable.
@@ -393,14 +395,15 @@ Narrower than rev 2's, because the scope is narrower. Throwaway RN app, no polis
 
 ## 10. Phases
 
-Status as of v0.5.2 (Android only — none of this exists on iOS).
+Status as of v0.7.0 on Android. There is no iOS build. The Mac app has its own phases
+in [MACOS.md](MACOS.md) §8.
 
 - **Phase 1 — MVP. ✅ Shipped.** Widget/in-app record → background recording with screen off → stop → ASR job → transcript view → line-level share → export → list of past meetings. **This is the whole of stage 1.** Shipped at v0.1; export covers `.txt` and `.json`, not the full §6 format list.
 - **Phase 2 — Polish where it actually hurts.** Mostly done: full-text search across meetings ✅, meeting rename ✅, job recovery / never-fail-silently ✅, level meter ✅, audio-retention settings ✅ (Settings → Storage and privacy). Not built: setup-test flow, headphone detection, model tier selection.
-- **Phase 3 — Optional depth.** Live transcription mode ✅ — shipped early and reframed as a preview rather than a mode (§3.1). Not built: speaker diarization ([sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), pyannote-segmentation-3.0 + CAM++), transcript editing, calendar read for auto-titles.
+- **Phase 3 — Optional depth.** Live transcription mode ✅ — shipped early and reframed as a preview rather than a mode (§3.1). Speaker diarization ✅ — optional and labelled beta, via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (pyannote segmentation + a speaker-embedding model), with speaker naming and a Conversation view ([INTELLIGENCE.md](INTELLIGENCE.md)). Not built: transcript editing, calendar read for auto-titles.
 - **Phase 4 — Stage 2, if you still want it in-app.** Not started, and still out of scope. See appendix.
 
-**Carried over and still open:** `:asr` process isolation (§4.2 rule 3), the remaining §6 export formats, and the Phase 0 measurements (§9) — the accuracy and memory numbers in §5 and §4.1 are still the model authors' and estimates respectively, never verified on the actual Pixel 9.
+**Carried over and still open:** `:asr` process isolation (§4.2 rule 3) and the Phase 0 measurements (§9) — the accuracy and memory numbers in §5 and §4.1 are still the model authors' and estimates respectively, never verified on the actual Pixel 9.
 
 ---
 
@@ -462,22 +465,22 @@ idea. `DECISIONS.md`, `BENCHMARKS.md` and `HANDOFF.md` were never written —
 §6 in this file is still the only spec of the handoff artifact, and Phase 0's
 numbers (§9) were never formally recorded.
 
-Name candidates: *Deskmate*, *Roomnote*, *Tabletop*, *Offrecord*. Check store/trademark collisions first. **Resolved: shipped as Scribe.**
+Name candidates: *Deskmate*, *Roomnote*, *Tabletop*, *Offrecord*. Check store/trademark collisions first. **Resolved: shipped as Scribe, later renamed Meeting Transcript** (the package ID `me.vattitude.scribe` and the repo name are unchanged).
 
 ---
 
 ## 13. Risk register
 
-Mitigation column says what was planned; status says what's true at v0.5.2.
+Mitigation column says what was planned; status says what's true at v0.7.0.
 
 | Risk | Severity | Mitigation | Status |
 |---|---|---|---|
-| **Headphones on → only your half is recorded** | **High** — likeliest real failure | Single-voice detection + warning; setup-test flow; explicit onboarding | ⚠️ **Open on Android.** None of the three built; documented in the README only. The live preview partly covers it by accident — a monologue preview is visible while you can still fix the setup. A Mac app removes the risk rather than mitigating it, by capturing system audio ([MACOS.md](MACOS.md)) |
+| **Headphones on → only your half is recorded** | **High** — likeliest real failure | Single-voice detection + warning; setup-test flow; explicit onboarding | ⚠️ **Open on Android.** None of the three built; documented in the README only. The live preview partly covers it by accident — a monologue preview is visible while you can still fix the setup. The Mac app removes the risk rather than mitigating it, by capturing system audio ([`mac/`](../mac)) |
 | Remote-participant WER through laptop speakers too poor to quote | **High** — kill criterion | Phase 0 test #2; best model the budget allows; placement guidance; external mic later | ⚠️ **Unmeasured.** Phase 0 never formally run; the kill criterion was never tested. Best model shipped |
 | iOS OOM on a 4 GB iPhone | Medium — *was* high before §4 | 1 GB peak budget, >1 GB headroom, runtime headroom check, `base.en` fallback tier | N/A — no iOS build |
 | OEM battery management stops the Android service | Medium | Pixel is well-behaved; still test; rolling disk segments mean a kill isn't fatal | ✅ Segments shipped; battery-level gating removed in `6d480d5` so a low battery no longer blocks transcription |
 | ASR job fails on a 2-hour meeting | Medium | Resumable jobs, separate process on Android, segment-level retry | ◐ Resumable + segment-level retry shipped; **separate process not built** (§4.2 rule 3) |
-| Transcripts differ between the two devices | Low | Record `asrModelId`; standardise on `small.en` if it ever matters | ✅ `asr_model` recorded and exported. Moot while Android-only — though live vs accurate now differ *within* one device, which is why the accurate pass overwrites |
+| Transcripts differ between the two devices | Low | Record `asrModelId`; standardise on `small.en` if it ever matters | ✅ `asr_model` recorded and exported. Android and Mac run the same Parakeet model, but the Mac cuts audio at pauses (VAD) where Android decodes fixed segments, so wording can differ slightly at the cuts. Live vs accurate also differ *within* Android, which is why the accurate pass overwrites |
 | Stage-2 export leaks meeting content | Medium | §1.5 and §11 — a deliberate decision, plain-text export so you can read exactly what you're sending | ✅ `.txt` and `.json` are both human-readable before you send them |
 | Employer policy on recording | Medium | §11 — check before building the habit | ⚠️ README covers it; no in-app explainer or announce-recording helper |
 
@@ -485,10 +488,10 @@ Mitigation column says what was planned; status says what's true at v0.5.2.
 
 ## 14. Open questions
 
-1. ~~**Which iPhone?**~~ ~~**Moot for now.**~~ **Answered: the second platform is macOS.** iOS is off the roadmap — no app can capture another app's audio there, so an iOS Scribe could only ever record the room. macOS captures system audio directly, which sidesteps §1.2's entire acoustic problem and §13's kill criterion. Designed in [MACOS.md](MACOS.md), with a working capture spike in [`mac/`](../mac) that already writes the same 16 kHz PCM segments this app records.
-2. ~~**Android first?**~~ **Answered: yes.** Android was built first and is the only platform shipped. The port never started.
+1. ~~**Which iPhone?**~~ ~~**Moot for now.**~~ **Answered: the second platform is macOS.** iOS is off the roadmap — no app can capture another app's audio there, so an iOS version could only ever record the room. macOS captures system audio directly, which sidesteps §1.2's entire acoustic problem and §13's kill criterion. Built: a menu bar app in [`mac/`](../mac) that writes the same 16 kHz PCM segments this app records; designed in [MACOS.md](MACOS.md).
+2. ~~**Android first?**~~ **Answered: yes.** Android was built first. The second platform is the Mac, not iOS (see 1).
 3. **Typical meeting length?** Still open. Resumability is built either way, but it's unmeasured against a 2-hour job.
-4. ~~**Keep audio for playback-while-reading**, or delete after transcription?~~ **Answered: delete, by default.** Settings now carries a *Delete audio after transcribing* switch, defaulting ON as §11 always said it should, plus a *Clear recorded audio* action that keeps transcripts. Deletion happens in `TranscribeWorker` only on a successful pass, so a failure keeps its audio to retry from. Playback-while-reading was not built and is now mutually exclusive with the default — if it is ever wanted, it is for people who turn the switch off.
+4. ~~**Keep audio for playback-while-reading**, or delete after transcription?~~ **Answered: delete, by default.** Settings now carries a *Delete audio after transcribing* switch, defaulting ON as §11 always said it should, plus a *Clear recorded audio* action that keeps transcripts. Deletion happens in `TranscribeWorker` only on a successful pass, so a failure keeps its audio to retry from. Playback-while-reading has since been built (*Play from here* on any line), for meetings whose audio is kept — so it is for people who turn the switch off.
 5. **Which external agent for stage 2?** Still open. The `.json` export (§6) remains the only boundary.
 
 ---
