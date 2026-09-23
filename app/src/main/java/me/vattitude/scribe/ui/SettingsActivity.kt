@@ -484,8 +484,8 @@ class SettingsActivity : AppCompatActivity() {
             MaterialAlertDialogBuilder(this@SettingsActivity)
                 .setTitle("Clear ${Settings.format(audio)} of audio?")
                 .setMessage(
-                    "Transcripts are kept and stay readable. Meetings that have not " +
-                        "been transcribed yet cannot be transcribed afterwards — their audio is the source."
+                    "Transcripts are kept and stay readable. Meetings that haven't been " +
+                        "transcribed yet will never be transcribed, because the audio is needed to do it."
                 )
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Clear audio") { _, _ ->

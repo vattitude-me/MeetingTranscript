@@ -472,7 +472,7 @@ class RecorderService : Service() {
         )
         val minutes = (durationMs / 60_000L).toInt()
         val n = NotificationCompat.Builder(this, ScribeApp.CHANNEL_CHECK_IN)
-            .setContentTitle("Recording stopped — phone storage is full")
+            .setContentTitle("Recording stopped: phone storage is full")
             .setContentText("The first $minutes min are saved and will be transcribed.")
             .setStyle(
                 NotificationCompat.BigTextStyle().bigText(

@@ -5,71 +5,72 @@
 <h1 align="center">Meeting Transcript</h1>
 
 <p align="center">
-  Record a meeting on your Android phone or your Mac, get a timestamped transcript.<br>
-  Everything runs on your device. No audio ever leaves it. No account, no subscription.
+  Record a meeting on your Android phone or your Mac and get a transcript with timestamps.<br>
+  Everything runs on your device. Your audio never leaves it. No account, no subscription.
 </p>
 
 ---
 
 ## What it does
 
-You are on a call on your laptop. You put your phone next to it and tap one widget.
-It records the room, and when you tap stop it turns that audio into a transcript —
-line by line, each with a timestamp, each individually shareable.
+You are on a call on your laptop. You put your phone next to it and tap one button on
+your home screen. The phone records the room. When you tap stop, it turns the recording
+into a transcript. Each line has a timestamp, and you can share any line on its own.
 
-On a Mac there is no phone to put anywhere: the menu bar app records the call itself
-(whatever Zoom, Meet or Teams is playing) plus your microphone, and writes the transcript
-while the meeting is still going.
+On a Mac you don't need the phone. The app sits in the menu bar and records the call
+directly (whatever Zoom, Meet or Teams is playing) along with your microphone. It writes
+the transcript while the meeting is still going.
 
-There is no account, no upload, and no network call except the one-time model download.
+There is no account and nothing is uploaded. The app only goes online once, to download
+the speech model.
 
-**Why not the recorder app already on your phone?** Because it hands you a wall of text
-with no idea that four people were in the room. This app separates the voices, so the
-transcript says who spoke, and a **Conversation** view says who spoke for how long, who
-asked the questions and who talked over whom. All of it on the phone, with nothing
-uploaded — not because a server would be hard, but because a meeting recording should
-only ever exist in one place. [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) has the long
-version, including what we deliberately do *not* claim.
+**Why not use the recorder app that came with your phone?** That app gives you one long
+block of text. It doesn't know that four people were talking. This app tells the voices
+apart, so the transcript shows who said what. The **Conversation** view shows how long
+each person spoke, who asked the questions, and who interrupted whom. All of this happens
+on the phone. We keep it that way because a recording of a meeting should exist in only
+one place. [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) explains this in more detail,
+including what the app can't do.
 
-**Stage 1 (this repo, today): audio → text.**
-**Stage 2 (deliberately out of scope): summaries and action points**, produced by
-whatever model or agent you like, from the JSON transcript the app exports. See
-[docs/PLAN.md](docs/PLAN.md) for why the split exists.
+**What this app does:** turn audio into text.
+**What it leaves to you:** summaries and action items. Export the transcript and give it
+to any AI tool you like. [docs/PLAN.md](docs/PLAN.md) explains why.
 
 ## Install
 
 | | Android | Mac |
 |---|---|---|
-| Get it | APK from [Releases](../../releases) | build from source, free ([below](#on-a-mac)) |
-| Needs | arm64 phone, Android 10+ | Apple silicon, macOS 14+ |
-| Records | the room, through the phone's mic | the call's audio and your mic, separately |
-| Who said what | speaker separation by voice (optional, beta) | **You** / **Them**, from which stream a line came from |
-| Transcript | after the meeting, plus a live preview | live, during the meeting |
+| How to get it | Download the APK from [Releases](../../releases) | Build it yourself for free ([steps below](#on-a-mac)) |
+| You need | A 64-bit (arm64) phone with Android 10 or newer | A Mac with Apple silicon and macOS 14 or newer |
+| What it records | The room, through the phone's microphone | The call's audio and your microphone, kept separate |
+| Who said what | Tells voices apart (optional, still in testing) | Labels each line **You** or **Them** |
+| When you get the transcript | After the meeting, with a rough live preview during it | Live, during the meeting |
 
 ### Android
 
-Grab the APK from [Releases](../../releases) and sideload it on an arm64 Android phone
-(Android 10 / API 29 or newer). Built and tested against a Pixel 9.
+Download the APK from [Releases](../../releases) and install it on your phone. It needs
+a 64-bit (arm64) phone running Android 10 or newer. It was built and tested on a Pixel 9.
 
-On first launch:
+The first time you open it:
 
-1. Tap **Download** — about 615 MB total (two models: a small streaming one for the
-   live preview, and the large accurate one), once. It waits for Wi-Fi unless you
-   choose to spend mobile data, carries on in the background if you leave the app,
-   and resumes where it stopped if the connection drops.
-2. Tap **Record**. The microphone permission is asked for then, when it is needed,
-   not the moment the app opens.
-3. Once the models are in, a card offers to put the 1×1 record tile on your home
-   screen. Settings → **Add the home-screen widget** does the same later.
+1. Tap **Download**. This downloads about 615 MB, one time only. There are two models:
+   a small one for the live preview and a large, accurate one for the final transcript.
+   The download waits for Wi-Fi unless you choose to use mobile data. It keeps going if
+   you leave the app, and picks up where it left off if your connection drops.
+2. Tap **Record**. The app asks for microphone access at this point, not as soon as it
+   opens.
+3. Once the download is done, the app offers to add a record button to your home screen.
+   You can also do this later from Settings → **Add the home-screen widget**.
 
-You can record before the model finishes downloading. The audio waits on disk and
-transcribes itself once the model is there.
+You can start recording before the download finishes. The recording is saved, and the
+app transcribes it once the model is ready.
 
 ### On a Mac
 
-The Mac app is built from source. It is free and takes a couple of minutes. You need
-Apple silicon, macOS 14 or newer, and the Xcode Command Line Tools
-(`xcode-select --install`). You don't need Xcode itself or an Apple Developer account.
+You build the Mac app yourself. It's free and takes a couple of minutes. You need a Mac
+with Apple silicon, macOS 14 or newer, and Apple's free Command Line Tools. To install
+those, run `xcode-select --install` in Terminal. You don't need Xcode or a paid Apple
+Developer account.
 
 ```bash
 git clone https://github.com/vattitude-me/MeetingTranscript.git
@@ -78,164 +79,168 @@ scripts/build-app.sh --install          # → ~/Applications/Meeting Transcript.
 open ~/Applications/"Meeting Transcript.app"
 ```
 
-On first launch:
+The first time you open it:
 
-1. Click the waveform icon in the menu bar, then **Download (490 MB)**. This fetches
-   the speech model and voice detector, once.
-2. Under **Before your first meeting**, click **Allow** for Microphone and Screen
-   Recording. Screen Recording is how macOS names access to another app's audio.
-   The app takes a 2×2-pixel frame and throws it away. After granting it, quit and
-   reopen the app once.
-3. When the call starts, press **Record meeting**, from the menu bar or the library
-   window (⇧⌘R). Lines appear as people speak, labelled **You** and **Them**.
+1. Click the waveform icon in the menu bar, then click **Download (490 MB)**. This
+   downloads the speech model, one time only.
+2. Under **Before your first meeting**, click **Allow** for Microphone and for Screen
+   Recording. macOS needs Screen Recording access before any app can hear another app's
+   audio. This app only keeps the sound. It never saves the screen. After you allow it,
+   quit the app and open it again.
+3. When your call starts, click **Record meeting** in the menu bar or in the main window
+   (or press ⇧⌘R). Lines appear as people speak, labelled **You** and **Them**.
 
-If you plan to rebuild the app, run `scripts/make-signing-identity.sh` once first,
-so macOS doesn't ask for the permissions again after every build.
-[mac/README.md](mac/README.md) has the details, the command line, and speed
-measurements.
+If you plan to rebuild the app often, run `scripts/make-signing-identity.sh` once first.
+That stops macOS from asking for permission again after every rebuild.
+[mac/README.md](mac/README.md) has the details, the command-line tool, and speed results.
 
 ## Using it
 
-This section is the Android app. The Mac app (menu bar recorder, library window,
-playback, exports, the command line) is covered in [mac/README.md](mac/README.md).
+This section covers the Android app. For the Mac app, see [mac/README.md](mac/README.md).
 
 **Recording**
 
-- **Tap the widget or Record** to start. The recording screen shows elapsed time, a
-  level meter, and a live, rough preview of the transcript as it picks up the room.
-  While it records, the button on the main screen turns magenta and counts the time.
-- **Mark** drops a bookmark at the current moment ("that was the decision") — it shows
-  up in the transcript where it happened, and you can play the audio from just before it.
-- **Stop** asks you to name the meeting while it is fresh (or skip), and the accurate
-  transcription starts by itself.
-- If the phone runs low on storage it warns you before you start, and stops a recording
-  cleanly rather than failing half-written. If the app is killed mid-recording, the
-  audio already on disk is recovered as a meeting the next time you open it.
+- **Tap the home-screen button or Record** to start. The recording screen shows how long
+  you've been recording, a sound level meter, and a rough live preview of the transcript.
+  While it records, the button on the main screen turns magenta and shows the time.
+- **Mark** saves a bookmark at the current moment, for example when a decision is made.
+  The bookmark shows up in the transcript, and you can play the audio from just before it.
+- **Stop** asks you to name the meeting (you can skip this). The final transcript then
+  starts on its own.
+- If your phone is low on storage, the app warns you before you start. If storage runs
+  out while recording, it stops and saves what it has. If the app is closed in the middle
+  of a recording, the audio it already saved shows up as a meeting the next time you
+  open the app.
 
 **Reading**
 
-- Open a meeting to read the transcript. A banner at the top says what is happening to
-  it — transcribing (with progress), queued, waiting for models, paused, or failed with
-  **Try again** — so nothing happens behind your back when you merely open it.
-- **Find** (magnifier) searches inside the transcript, highlights every match and steps
-  through them. Searching from the main list carries the query into the meeting.
-- **Tap a line** to copy it, share it, or **play from here** — while the recording is
-  still kept, you can hear exactly what was said.
-- **Copy for chatbot** puts the transcript on the clipboard with a summarise-and-cite
-  prompt already attached, so handing a meeting to a model is one paste.
-- Share the whole transcript as `.txt`, or export Markdown, `.json`, `.srt` or `.vtt`.
-- **Speaker labels** appear above a line when the voice changes, once you have turned
-  speaker separation on in Settings (an extra 37 MB download, also offline). Tap a label
-  to name that voice; the name applies to every line they spoke and follows the
-  transcript into every export. **Conversation** in the menu shows talk time per speaker.
+- Open a meeting to read its transcript. A banner at the top tells you what's happening:
+  transcribing (with progress), waiting its turn, waiting for the download, paused, or
+  failed. If it failed, tap **Try again**. Opening a meeting never starts anything on its
+  own.
+- **Find** (the magnifying glass) searches the transcript, highlights every match, and
+  lets you jump between them. If you search from the main list, the search carries over
+  when you open a meeting.
+- **Tap a line** to copy it, share it, or **play from here**. As long as the recording
+  is still saved, you can hear exactly what was said.
+- **Copy for chatbot** copies the transcript along with instructions for an AI tool
+  (summarize it and point to the lines it used). Paste it into any chatbot.
+- Share the whole transcript as a text file, or export it as Markdown, JSON, or
+  subtitles (`.srt` or `.vtt`).
+- **Speaker labels** appear when a different person starts talking. You need to turn on
+  **Identify speakers** in Settings first. It's an extra 37 MB download and also works
+  offline. Tap a label to give that person a name. The name appears on every line they
+  spoke and in every export. **Conversation** in the menu shows how long each person
+  talked.
 
 **Managing**
 
-- **Swipe a meeting** to delete it, with **Undo**. Long-press for Rename and Delete.
-  Deleting from inside a meeting tells you what goes — minutes of audio, megabytes,
-  transcript lines — before you confirm.
-- **Settings** (the gear, top right) holds your data: export the whole library as a
-  single backup file, restore one, decide whether recordings are deleted once they have
-  been transcribed, and check which build you are running.
+- **Swipe a meeting** to delete it. You can tap **Undo**. Press and hold a meeting to
+  rename or delete it. If you delete a meeting from inside it, the app first tells you
+  what will be deleted (how many minutes of audio, how many megabytes, how many lines).
+- **Settings** (the gear icon, top right) lets you back up your whole library to one
+  file, restore a backup, choose whether to delete recordings once they've been
+  transcribed, and see which version you're running.
 
-The transcript you keep is always produced by the **accurate** pass, which runs **after**
-the meeting, not during it. That is on purpose: it keeps the phone cool while recording,
-lets the recognizer take its time, and means a crash in the recognizer can never cost you
-audio. The live preview shown during recording is a disposable scaffold — it's there so
-you can see the phone is actually hearing the room while you can still move it, not to be
-the transcript itself.
+The transcript you keep always comes from the **accurate** model, which runs **after**
+the meeting ends. This keeps your phone from heating up while recording, gives the
+model the time it needs, and means a problem with transcription can never lose your
+audio. The live preview during recording is only there so you can check that the phone
+can hear the room while you still have time to move it. It isn't saved.
 
 ### Backups
 
-Settings → **Export a backup** writes your whole library as one `.zip` — a manifest of
-every meeting and transcript, optionally with the recordings alongside. It asks which,
-because transcripts on their own are kilobytes and the same archive with audio is
-hundreds of megabytes.
+Settings → **Export a backup** saves your whole library as one `.zip` file. It includes
+every meeting and transcript, and you can choose to include the recordings too. The app
+asks because transcripts alone are tiny, while recordings can take hundreds of megabytes.
 
-**Restore a backup** reads one back. Restoring is **additive**: meetings are added to
-what is already on the phone and nothing is replaced, so picking the wrong file cannot
-cost you anything. That also makes the backup the way to move a library between phones —
-and, in time, to a Mac: it is the interchange format [docs/MACOS.md](docs/MACOS.md)
-builds on.
+**Restore a backup** loads a backup file. Restoring only adds meetings. It never replaces
+or deletes anything already on your phone, so choosing the wrong file can't hurt. You can
+also use a backup to move your meetings to a new phone. The Mac app can't read these
+backups yet, but that is planned ([docs/MACOS.md](docs/MACOS.md)).
 
-There is no cloud backup, because there is no cloud. If you want a copy, you make one.
+There is no cloud backup, because the app doesn't use the cloud. If you want a copy, you
+make one.
 
 ### Speakers
 
-Settings → **Identify speakers** downloads two more models (37 MB, once, offline like
-everything else). After that, each new recording is split into distinct voices as part of
-the same pass that transcribes it.
+Settings → **Identify speakers** downloads two more small models (37 MB, one time,
+works offline). After that, every new recording is split into separate voices while it
+is transcribed.
 
-It finds *voices*, not people. There is no voiceprint database and nothing identifies
-anybody — you get "Speaker 1" and "Speaker 2" until you type a name, and the names stay
-on that one meeting. Speaker separation can also simply be wrong, which is why the
-Conversation view says so and every number in it can be checked against the transcript.
+It tells *voices* apart. It doesn't know *who* anyone is. There is no voice database,
+and it never identifies anybody. You see "Speaker 1" and "Speaker 2" until you type in
+names, and those names only apply to that one meeting. It can also get things wrong,
+which is why the Conversation view says so, and why you can check every number in it
+against the transcript.
 
-Because it reads the waveform, it runs **before** the audio is deleted, in the same pass
-as transcription. The consequence is that meetings transcribed before you turned it on
-cannot be relabelled — their audio is already gone.
+This needs the recording, so it runs **before** the recording is deleted, at the same
+time as the transcript is made. That means meetings transcribed before you turned it on
+can't get speaker labels, because their audio is already gone.
 
 ## How it works
 
-On Android:
+This section is for developers. Here is how the Android app is put together:
 
 ```
 widget tap
-   └─ RecordTrampolineActivity        (satisfies Android 14+ FGS-from-background rules)
+   └─ RecordTrampolineActivity        (needed for Android 14+ background start rules)
         └─ RecorderService            foreground service, type=microphone
-             └─ 16 kHz mono PCM16, rotating 30-second segments on disk
+             └─ 16 kHz mono PCM16, saved as 30-second files on disk
                   │                              │
-                  │ (disk only)                  │ (same buffers, own thread, bounded queue)
+                  │ (reads from disk)            │ (same audio, separate thread)
                   ▼                              ▼
              TranscribeWorker              LiveTranscriber
-             WorkManager, resumable        StreamingEngine → 20M zipformer int8
-             segment by segment            on-screen preview while recording; drops
-                  │                        audio under load rather than blocking it
+             WorkManager, can resume       StreamingEngine → 20M zipformer int8
+             file by file                  preview on screen while recording; skips
+                  │                        audio if it falls behind, never blocks
                   ▼
              ParakeetEngine   sherpa-onnx → Parakeet TDT 0.6B v3 int8
-                  └─ SQLite: clears the live preview lines, writes its own
+                  └─ SQLite: removes the preview lines, saves the final ones
 ```
 
-| Piece | Choice | Why |
+| Part | What we use | Why |
 |---|---|---|
-| Accurate ASR model | [Parakeet TDT 0.6B v3](https://github.com/k2-fsa/sherpa-onnx) int8 | 6.34% WER vs Whisper large-v3's 7.44%, at a fraction of the size |
-| Live preview model | streaming zipformer, 20M params, int8 | Small and fast enough to decode while still recording; a disposable preview, not the kept transcript |
-| Runtime | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) prebuilt AAR | ONNX Runtime + a tested TDT decoder; no NDK toolchain needed to build this repo |
-| Audio | 16 kHz mono PCM16, 30 s segments | ~115 MB/hour, and a segment is the unit of resumable work |
-| Storage | Hand-written `SQLiteOpenHelper` | Two tables; Room's codegen is not worth the build surface |
-| UI | Views + ViewBinding, Material 3 dark theme | Smaller, faster to build, fewer moving parts at v0.1 |
+| Accurate speech model | [Parakeet TDT 0.6B v3](https://github.com/k2-fsa/sherpa-onnx) int8 | Fewer mistakes than Whisper large-v3 (6.34% vs 7.44% word error rate) and much smaller |
+| Live preview model | Streaming zipformer, 20M parameters, int8 | Small and fast enough to run while recording. Only for the preview |
+| Runtime | [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) prebuilt AAR | Includes ONNX Runtime and a tested decoder, so you don't need the Android NDK to build |
+| Audio | 16 kHz mono PCM16, 30-second files | About 115 MB per hour. Each file is one step that can be resumed |
+| Storage | Plain `SQLiteOpenHelper` | Only two tables, so a database library isn't worth it |
+| UI | Views + ViewBinding, Material 3 dark theme | Smaller and faster to build |
 
-On the Mac the shape is simpler, because Apple silicon is fast enough to drop the
-preview model: each stream is cut into utterances by a voice detector and Parakeet
-transcribes each one as it ends, at about 18× real time. Details and measurements are in
-[docs/MACOS.md](docs/MACOS.md).
+The Mac app is simpler. Apple silicon is fast enough that it doesn't need a separate
+preview model. It detects when each person stops talking, and Parakeet transcribes that
+stretch right away, at about 18 times faster than real time. The details and
+measurements are in [docs/MACOS.md](docs/MACOS.md).
 
-Recording and transcription are coupled **only through the disk**. If the recognizer runs
-out of memory, the PCM files are still sitting there and the job picks up at the segment
-it last committed — it does not restart an hour of work. The live preview reads the same
-audio buffers non-destructively; if it falls behind and drops audio, the disk copy — and
-the accurate pass that runs over it after the meeting — is unaffected.
+On Android, recording and transcription only talk to each other **through files on
+disk**. If transcription runs out of memory, the audio files are still there, and the
+job continues from the last file it finished. It never starts an hour of work over. The
+live preview reads the same audio without changing it. If the preview falls behind and
+skips some audio, the saved copy and the final transcript are not affected.
 
 ## Building it yourself
 
-The Mac app: see [mac/README.md](mac/README.md) — one script, no Xcode, no Apple
-Developer account.
+For the Mac app, see [mac/README.md](mac/README.md). It's one script, with no Xcode and
+no Apple Developer account.
 
-The Android app requires JDK 21 and an Android SDK with platform 35 and build-tools 35.
+To build the Android app you need JDK 21 and the Android SDK (platform 35 and
+build-tools 35).
 
 ```bash
 git clone https://github.com/vattitude-me/MeetingTranscript.git
 cd MeetingTranscript
-./scripts/setup.sh                                   # fetches the 48 MB sherpa-onnx AAR
+./scripts/setup.sh                                   # downloads the 48 MB sherpa-onnx AAR
 echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties
 JAVA_HOME=/path/to/jdk-21 ./gradlew :app:assembleDebug
 ```
 
-The APK lands in `app/build/outputs/apk/debug/`.
+The APK is saved in `app/build/outputs/apk/debug/`.
 
 ### Signing a release build
 
-`assembleRelease` looks for `keystore.properties` at the repo root (git-ignored):
+`assembleRelease` looks for a file called `keystore.properties` in the top folder of the
+repo. Git ignores this file, so it is never committed.
 
 ```properties
 storeFile=/absolute/path/to/release.keystore
@@ -244,49 +249,54 @@ keyAlias=scribe
 keyPassword=…
 ```
 
-Without that file the release build still assembles — it is simply unsigned and will not
-install. The keystore must never change between releases, or Android will refuse the
-upgrade and you will have to uninstall first.
+Without that file, the release build still finishes, but the APK is unsigned and won't
+install. Always use the same keystore for every release. If it changes, Android refuses
+the update and people have to uninstall the old version first.
 
 ## Known limits
 
-- **Headphones defeat it.** If you listen through headphones the phone only hears your
-  half of the conversation. There is nothing software can do about that on a phone; use
-  the laptop speaker, or run the [Mac app](mac), which captures the call's audio directly.
-- **The speaker count is a guess, and often a bad one.** Left to itself, the clusterer
-  decides how many voices it heard from a similarity threshold, and no single threshold
-  works: swept from 0.2 to 0.9 over one-, two- and three-speaker recordings, none gave
-  the right count for all of them. One person talking for nine minutes drifts enough to
-  be split into several speakers. Told the true number, it was right every time — so
-  when the count looks wrong, tap the line under the title and say how many people
-  spoke, and the voices are separated again without re-transcribing.
-- **Transcription quality is unmeasured** against real meeting audio on a Pixel 9. The
-  numbers above are the model author's, not ours.
-- **No iOS app.** The iOS app in [docs/PLAN.md](docs/PLAN.md) was never built, and is no
-  longer the plan — iOS cannot capture another app's audio. The second platform is macOS:
-  [mac/](mac) is a menu bar app that records the call and your microphone and transcribes
-  them live. You build it from source for free, without an Apple Developer account. It
-  does not yet read or write Android backups. See [docs/MACOS.md](docs/MACOS.md).
-- **No process isolation.** The plan calls for running ASR in a `:asr` process so an OOM
-  cannot take the recorder down; today it shares the main process.
+- **Headphones don't work with the Android app.** If you listen through headphones, the
+  phone can only hear your side of the call. No phone app can fix that. Use your laptop's
+  speakers, or use the [Mac app](mac), which records the call's audio directly.
+- **The number of speakers is a guess, and often wrong.** On its own, the app decides how
+  many voices it heard, and it often gets this wrong. We tested many settings on
+  recordings with one, two and three people, and no single setting got all of them right.
+  One person talking for nine minutes can end up split into several "speakers". When we
+  told it the right number, it was right every time. So if the count looks wrong, tap the
+  line under the meeting title and enter how many people spoke. The app separates the
+  voices again without redoing the transcript.
+- **We haven't measured accuracy on real meetings** recorded on a Pixel 9. The accuracy
+  numbers above come from the model's authors, not from us.
+- **There is no iPhone app.** The original plan in [docs/PLAN.md](docs/PLAN.md) included
+  one, but iPhones don't let apps record other apps' audio. We built the Mac app instead:
+  [mac/](mac) records the call and your microphone and transcribes them live. You can
+  build it for free without an Apple Developer account. It can't read or write Android
+  backups yet. See [docs/MACOS.md](docs/MACOS.md).
+- **On Android, recording and transcription run in the same process.** The plan was to
+  run transcription separately, so that if it ran out of memory it couldn't stop a
+  recording. That hasn't been done yet.
 
 ## Privacy
 
-On Android, audio and transcripts live in the app's private storage. `allowBackup` is
-off, so nothing is copied into a Google backup. On the Mac, everything is in one folder,
-`~/Library/Application Support/Meeting Transcript`. On both, the only network traffic
-the app generates is the one-time model download from GitHub.
+On Android, your recordings and transcripts are stored in the app's private storage.
+Android's automatic backup is turned off for this app, so nothing is copied to Google.
+On the Mac, everything is stored in one folder:
+`~/Library/Application Support/Meeting Transcript`. On both, the only time the app uses
+the internet is to download the models, once, from GitHub.
 
-Recording other people has rules that vary by jurisdiction and employer. That part is on you.
+The rules about recording other people depend on where you live and where you work.
+Following them is up to you.
 
 ## Contributing
 
-Bug reports, measurements from real meetings and pull requests are welcome — open an
-[issue](../../issues). The design documents in [docs/](docs) explain why things are the
-way they are; [docs/PLAN.md](docs/PLAN.md) is the original plan, [docs/MACOS.md](docs/MACOS.md)
-the Mac design, and [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) the speaker and
-conversation features.
+Bug reports, results from real meetings, and pull requests are all welcome. Please open
+an [issue](../../issues). The documents in [docs/](docs) explain why the app works the
+way it does:
+- [docs/PLAN.md](docs/PLAN.md) is the original plan.
+- [docs/MACOS.md](docs/MACOS.md) covers the Mac app.
+- [docs/INTELLIGENCE.md](docs/INTELLIGENCE.md) covers the speaker and conversation
+  features.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

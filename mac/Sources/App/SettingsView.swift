@@ -8,18 +8,18 @@ struct SettingsView: View {
         Form {
             Section("Recording") {
                 Toggle("Record the call’s audio", isOn: $model.captureSystem)
-                caption("What the Mac plays — Zoom, Meet, Teams, a browser tab. Needs Screen Recording access. Off records the microphone only.")
+                caption("Whatever the Mac plays: Zoom, Meet, Teams or a browser tab. Needs Screen Recording access. When off, only the microphone is recorded.")
                 Toggle("Remove the call’s echo from your side", isOn: $model.filterEcho)
-                caption("On speakers, the microphone hears the call too. Lines it heard that match what the call said are dropped, so they are not in the transcript twice.")
+                caption("When you use speakers, the microphone also hears the call. Those lines are removed so they don't appear in the transcript twice.")
                 Toggle("Apple echo cancellation on the microphone", isOn: $model.voiceProcessing)
-                caption("Cancels the speakers at the source. Can lower other apps’ volume while recording. Not needed with headphones.")
+                caption("Stops the microphone from hearing your speakers. It can make other apps quieter while recording. Not needed with headphones.")
             }
             Section("General") {
                 Toggle("Open at login", isOn: Binding(get: { model.opensAtLogin }, set: { model.opensAtLogin = $0 }))
                 LabeledContent("Permissions") {
                     HStack {
-                        Text(model.micStatus == .authorized ? "Microphone ✓" : "Microphone –")
-                        Text(model.screenGranted ? "Screen Recording ✓" : "Screen Recording –")
+                        Text(model.micStatus == .authorized ? "Microphone ✓" : "Microphone: not allowed")
+                        Text(model.screenGranted ? "Screen Recording ✓" : "Screen Recording: not allowed")
                         Button("Open Privacy Settings") { NSWorkspace.shared.open(Permissions.screenSettingsURL) }
                     }
                     .font(.callout)
@@ -29,15 +29,15 @@ struct SettingsView: View {
                 LabeledContent("Library") {
                     Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([Paths.root]) }
                 }
-                caption(Paths.root.path + " — meetings, transcripts and audio. Nothing is stored anywhere else.")
+                caption(Paths.root.path + ". Your meetings, transcripts and audio are all here. Nothing is stored anywhere else.")
                 LabeledContent("Speech model") {
                     Text(model.modelsReady ? "Installed" : "Not downloaded").foregroundStyle(.secondary)
                 }
                 caption("Parakeet TDT 0.6B v3 (int8) and Silero VAD, running on \(Engine.threads) performance cores" +
-                        (Engine.shared.speed > 0 ? String(format: " — last run %.0f× real time.", Engine.shared.speed) : "."))
+                        (Engine.shared.speed > 0 ? String(format: ". Last run: %.0f× faster than real time.", Engine.shared.speed) : "."))
             }
             Section {
-                caption("Meeting Transcript \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev") · everything happens on this Mac; no account, no upload.")
+                caption("Meeting Transcript \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev") · Everything happens on this Mac. No account, no upload.")
             }
         }
         .formStyle(.grouped)

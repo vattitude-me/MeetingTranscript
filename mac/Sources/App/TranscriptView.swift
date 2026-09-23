@@ -80,7 +80,7 @@ struct TranscriptView: View {
             Button("Cancel", role: .cancel) { renaming = nil }
         } message: {
             Text(renaming == Source.system.rawValue
-                 ? "Everyone heard through the call is labelled together. Name them for this meeting — a person, or a team."
+                 ? "Everyone on the call shares one label. Give it a name for this meeting, like a person or a team."
                  : "The name used for lines from this Mac's microphone in this meeting.")
         }
         .confirmationDialog("Delete “\(meeting.map(Exporters.title) ?? "")”?", isPresented: $confirmDelete) {
@@ -320,12 +320,12 @@ struct TranscriptView: View {
                 Label(player.isPlaying && player.meetingId == id ? "Pause" : "Play",
                       systemImage: player.isPlaying && player.meetingId == id ? "pause.fill" : "play.fill")
             }
-            .help("Play the meeting — both sides mixed. Hover a line's time to play from there.")
+            .help("Play the meeting, with both sides together. Hover over a line's time to play from there.")
             .disabled(meeting?.state == .recording)
 
             Button {
                 guard let m = meeting else { return }
-                copy(Exporters.promptReady(m, lines, names), "Copied with instructions — paste into any chatbot")
+                copy(Exporters.promptReady(m, lines, names), "Copied with instructions. Paste it into any chatbot.")
             } label: {
                 Label("Copy for Chatbot", systemImage: "sparkles")
             }

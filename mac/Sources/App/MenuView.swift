@@ -70,7 +70,7 @@ struct MenuView: View {
                     LevelBar(label: "You", level: model.levels[.mic] ?? 0, color: Theme.speaker(0))
                     LevelBar(label: "Them", level: model.levels[.system] ?? 0, color: Theme.speaker(1))
                     Button { model.mark() } label: { Label("Mark", systemImage: "bookmark") }
-                        .help("Mark this moment (⇧⌘M) — it shows in the transcript")
+                        .help("Mark this moment (⇧⌘M). The mark shows in the transcript.")
                 }
                 if !model.modelsReady {
                     Text("The speech model is not in yet. The audio is saved and transcribed when it lands.")
@@ -231,7 +231,7 @@ struct PermissionsCard: View {
                 action: model.micStatus == .denied ? "Open Settings" : "Allow", perform: model.requestMic)
             if model.captureSystem {
                 row(done: model.screenGranted, title: "Screen Recording",
-                    detail: "How macOS lets an app hear the call. Only the sound is kept — the picture is a 2×2-pixel frame that is thrown away. Nothing leaves this Mac. After allowing it, quit and reopen the app.",
+                    detail: "macOS needs this before an app can hear the call. Only the sound is kept. The app never saves the screen. Nothing leaves this Mac. After you allow it, quit and reopen the app.",
                     action: "Allow", perform: model.requestScreen)
             }
         }

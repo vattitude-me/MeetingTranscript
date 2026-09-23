@@ -37,7 +37,7 @@ enum CLI {
 
     static func help() {
         print("""
-        Meeting Transcript — records meetings and transcribes them on this Mac.
+        Meeting Transcript records meetings and transcribes them on this Mac.
 
         Run with no arguments to start the menu bar app. Or:
 
@@ -118,7 +118,7 @@ enum CLI {
         await rec.stop()
         let m = Store.shared.meeting(rec.meetingId)!
         print(Exporters.plainText(m, Store.shared.lines(m.id), Store.shared.names(m.id)))
-        if let e = m.error { err("state: \(m.state.rawValue) — \(e)") }
+        if let e = m.error { err("state: \(m.state.rawValue): \(e)") }
     }
 
     /// Loudest level per source since it was last read.
@@ -148,7 +148,7 @@ enum CLI {
 
     static func export(_ args: [String]) throws {
         guard let id = args.first.flatMap(Int64.init), let m = Store.shared.meeting(id) else {
-            throw SherpaError(message: "usage: export <id> [txt|md|json|srt|vtt|prompt] — see `list` for ids")
+            throw SherpaError(message: "usage: export <id> [txt|md|json|srt|vtt|prompt]. Run `list` to see meeting ids.")
         }
         let lines = Store.shared.lines(id), names = Store.shared.names(id)
         let fmt = args.dropFirst().first ?? "txt"
@@ -194,7 +194,7 @@ enum CLI {
         let pieces = try Offline.transcribe(minute)
         let wall = Date().timeIntervalSince(t0)
         let audioSec = Double(minute.count) / Double(Audio.sampleRate)
-        print(String(format: "Speed: %.0f s of speech in %.2f s — %.0f× real time", audioSec, wall, audioSec / wall))
+        print(String(format: "Speed: %.0f s of speech in %.2f s, so %.0f× faster than real time", audioSec, wall, audioSec / wall))
         print("First line: \(pieces.first?.text ?? "(none)")")
 
         // Pipeline: both sources through the recorder's own files and the

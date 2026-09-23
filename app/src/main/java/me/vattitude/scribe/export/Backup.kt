@@ -127,7 +127,7 @@ object Backup {
                 }
             } ?: throw BadBackup("Could not read that file")
 
-            val root = manifest ?: throw BadBackup("Not a Meeting Transcript backup — no manifest inside")
+            val root = manifest ?: throw BadBackup("This isn't a Meeting Transcript backup file")
             if (root.optString("schema") != SCHEMA) {
                 throw BadBackup("Unsupported backup format: ${root.optString("schema", "unknown")}")
             }
@@ -218,7 +218,7 @@ object Backup {
                 }
             }
         }
-        throw BadBackup("Not a Meeting Transcript backup — no manifest inside")
+        throw BadBackup("This isn't a Meeting Transcript backup file")
     }
 
     private fun meetingJson(m: Meeting, lines: List<Line>, marks: List<Long>): JSONObject = JSONObject().apply {

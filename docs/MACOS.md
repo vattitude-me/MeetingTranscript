@@ -1,271 +1,276 @@
 # Meeting Transcript for macOS
 
-**Status:** a working menu bar app in [`mac/`](../mac). It records the call and
-your microphone as separate streams and transcribes them live with Parakeet, at
-18× real time on an M3 Pro. It builds and runs from source with no Apple
-Developer account; see [`mac/README.md`](../mac/README.md). It is not notarized
-or distributed yet (phase 6).
+**Status:** a working menu bar app in [`mac/`](../mac). It records the call and your
+microphone separately and transcribes them live with Parakeet, 18 times faster than
+real time on an M3 Pro. You can build and run it from source without an Apple Developer
+account (see [`mac/README.md`](../mac/README.md)). It isn't notarized by Apple or
+available as a download yet (phase 6).
 
-The Android app records the room through the phone's microphone. On a Mac the
-interesting audio is not in the room — it is inside the machine, in Zoom, Meet
-and Teams. That single difference is what this document is about. Everything
-downstream of capture already exists and does not need rethinking.
-
----
-
-## 1. Why macOS and not iOS
-
-PLAN.md assumed iOS. It should not have.
-
-iOS gives an app no access to the audio of another app. There is no API for it
-and there is not going to be one; the sandbox is the product. An iOS build
-could only ever record the room, which means holding a phone up to a laptop
-speaker during a call — worse than the Android app, not better.
-
-macOS has the opposite property. System audio capture is a supported, entitled,
-user-consented API. The meetings people actually want transcribed are the ones
-they take at a desk, on a Mac, in a browser tab. That is the gap worth filling.
-
-**Decision: the second platform is macOS. iOS is not on the roadmap.**
+The Android app records the room through the phone's microphone. On a Mac, the audio
+you care about isn't in the room. It's inside the computer, in Zoom, Meet and Teams.
+This document is about that one difference. Everything after recording already exists
+and doesn't need to change.
 
 ---
 
-## 2. What is already proven
+## 1. Why Mac and not iPhone
 
-`mac/Sources/MeetingTranscript/main.swift` is a ~200-line command-line spike
-(`swift run CaptureSpike`). It
-captures system audio via ScreenCaptureKit and writes the exact on-disk format
-the Android transcriber already consumes.
+The original plan (PLAN.md) assumed an iPhone app. That was a mistake.
+
+iPhones don't let an app hear another app's audio. There is no way to do it, and there
+won't be one, because keeping apps separate is a core part of how iPhones work. An
+iPhone app could only record the room. You'd have to hold your phone up to a laptop
+speaker during a call, which is worse than the Android app, not better.
+
+Macs are the opposite. Recording the computer's audio is officially supported, as long
+as the user gives permission. And the meetings people most want transcribed are the
+ones they take at a desk, on a Mac, in a browser tab. That's the gap worth filling.
+
+**Decision: the second platform is the Mac. An iPhone app is not planned.**
+
+---
+
+## 2. What we proved first
+
+`mac/Sources/MeetingTranscript/main.swift` is a small command-line test program, about
+200 lines (`swift run CaptureSpike`). It records the Mac's audio using ScreenCaptureKit
+and saves it in exactly the same file format the Android app already reads.
 
 ```
 cd mac && swift run CaptureSpike 8 ./out
 ```
 
-Verified on macOS 26.6 / Swift 6.3 / Apple silicon:
+Tested on macOS 26.6, Swift 6.3, Apple silicon:
 
 | Check | Result |
 |---|---|
-| Captures system audio | peak input level 0.198, not silence |
-| Sample rate after conversion | 16 000 Hz |
-| Format | mono, signed 16-bit, little endian, headerless |
-| Segment layout | `seg_00000.pcm`, 30 s rolling |
-| Byte-level parity with Android | same reader parses both; 8.4 s ⇄ 135 034 samples |
+| Records the Mac's audio | Peak level 0.198, so it's real sound, not silence |
+| Sample rate after conversion | 16,000 Hz |
+| Format | Mono, 16-bit, no header |
+| How files are split | `seg_00000.pcm`, a new file every 30 seconds |
+| Same as Android, byte for byte | The same code reads both. 8.4 s = 135,034 samples |
 
-The energy envelope of an 8-second capture tracked the individual sounds played
-through the speakers, with silence between them — so the bytes are real audio at
-the claimed rate, not a mis-parsed buffer that happens to be the right length.
+The volume of an 8-second recording rose and fell with each sound we played through
+the speakers, with silence in between. So the files hold real audio at the right
+speed, not garbage that just happens to be the right size.
 
-The two things the spike deliberately gets right, because they are the two
-places this is easy to get wrong:
+The test program gets two things right on purpose, because they're the two easiest
+things to get wrong:
 
-- **Resampling.** ScreenCaptureKit delivers 48 kHz deinterleaved float.
-  The models want 16 kHz Int16. The spike uses `AVAudioConverter`. Dropping
-  every third sample would also produce a 16 kHz file, and it would alias —
-  damage a speech model cannot be told to ignore, and which looks fine until
-  the word error rate is inexplicably bad.
-- **Proving it is not silence.** The common failure is that capture "succeeds",
-  permission looks granted, and every sample is zero. The spike tracks peak
-  input level and says so on exit.
+- **Converting the audio.** ScreenCaptureKit gives 48 kHz audio. The models need
+  16 kHz. The program uses Apple's `AVAudioConverter`. Just keeping every third sample
+  would also give a 16 kHz file, but the sound would be distorted in a way the speech
+  model can't ignore. It would look fine until the transcripts came out mysteriously
+  bad.
+- **Checking it isn't silence.** A common failure is that recording seems to work,
+  permission seems granted, and every sample is zero. The program tracks the loudest
+  sound it heard and reports it when it finishes.
 
 ### The one manual step
 
-Screen Recording is a TCC permission. The binary inherits the grant of whatever
-launched it, so running under a terminal or IDE prompts for *that* app, once,
-and requires restarting it. A shipped `.app` prompts for itself and this stops
-being a consideration.
+macOS needs Screen Recording permission. A command-line program gets its permission
+from whatever started it. So if you run it from Terminal or a code editor, macOS asks
+permission for *that* app, once, and you have to restart it. A finished `.app` asks for
+itself, so this problem goes away.
 
 ---
 
-## 3. Capture: ScreenCaptureKit, not CoreAudio taps
+## 3. Recording: ScreenCaptureKit, not CoreAudio taps
 
-Two APIs can do this. ScreenCaptureKit is the right one.
+There are two ways to record a Mac's audio. ScreenCaptureKit is the better choice.
 
 | | ScreenCaptureKit | CoreAudio process taps |
 |---|---|---|
-| Minimum macOS | 13 | 14.4 |
-| Permission | Screen Recording | Audio Capture |
-| Per-app capture | yes, by `SCRunningApplication` | yes, by PID |
-| Excludes our own audio | `excludesCurrentProcessAudio` | manual |
-| API shape | high level, stable | low level, HAL-adjacent |
+| Oldest macOS it works on | 13 | 14.4 |
+| Permission it needs | Screen Recording | Audio Capture |
+| Can record just one app | Yes | Yes |
+| Can leave out the app's own sound | Yes, built in | Have to do it yourself |
+| How easy it is | Simpler and stable | More complicated, closer to the hardware |
 
-ScreenCaptureKit reaches two OS versions further back, is the better-documented
-path, and hands us `excludesCurrentProcessAudio`, which matters more than it
-sounds: without it, any sound the app itself plays is captured and transcribed.
+ScreenCaptureKit works on older versions of macOS, is better documented, and can
+leave out the app's own sound. That matters more than it seems. Without it, any sound
+the app plays would be recorded and transcribed too.
 
-Its one real cost is the permission name. The app asks for *Screen Recording*
-in order to record audio, which reads as alarming for a privacy-first tool.
-Mitigation is honesty at the point of asking: explain in the pre-permission
-screen that the entitlement is what macOS requires for system audio, that the
-video stream is configured to a 2×2 pixel frame that is captured and discarded,
-and that nothing leaves the machine. This wording should be reviewed carefully —
-it is the single highest-risk moment in the product's trust story.
+Its one real downside is the permission name. The app asks for *Screen Recording* when
+it only wants audio. That sounds alarming for an app that's all about privacy. The fix
+is to be honest when asking. Before macOS shows its request, the app explains that
+macOS requires this permission to hear the call, that the picture is set to 2×2 pixels
+and thrown away, and that nothing leaves the Mac. This wording needs careful review.
+It's the moment where users are most likely to stop trusting the app.
 
-Revisit CoreAudio taps if and when macOS 14.4 becomes an acceptable floor.
-Capture is the only layer that would change.
+CoreAudio taps are worth another look once it's fine to require macOS 14.4 or newer.
+Only the recording part would change.
 
-### Microphone too
+### The microphone too
 
-A meeting is both sides. System audio is the far end; the near end is the
-built-in mic. Capture both, as two streams, and either:
+A meeting has two sides. The Mac's audio is the other people. Your side comes through
+the microphone. The app records both as separate streams. There were two options:
 
-1. **Mix to one channel.** Simplest. What the Android app effectively does. One
-   transcript, no speaker attribution.
-2. **Keep two streams.** Transcribe separately and interleave by timestamp.
-   Yields "you" versus "them" for free — which is the cheapest useful diarization
-   available anywhere in this product, and PLAN.md §5's Phase 3 never delivered.
+1. **Mix them into one.** Simplest, and roughly what the Android app does. One
+   transcript, no way to tell who spoke.
+2. **Keep them separate.** Transcribe each one, then put the lines in time order.
+   This tells you "you" versus "them" for free. It's the cheapest way to tell speakers
+   apart anywhere in this project, and the original plan's Phase 3 never delivered it.
 
-**Recommendation: two streams.** The extra cost is one more `AVAudioEngine` tap
-and a merge by `t_start_ms`. It converts a feature that needed a diarization
-model into bookkeeping. Ship (1) first if it shortens the path to something
-usable, but do not design the storage layer as if only one stream exists.
+**We chose separate streams.** It costs one more audio input and a sort by time. It
+turns something that needed an AI model into simple bookkeeping.
 
 ---
 
-## 4. ASR: the same models, unchanged
+## 4. Speech recognition: the same models
 
-sherpa-onnx ships prebuilt macOS arm64 binaries and has Swift bindings, from the
-same upstream releases the Android app already pulls (`k2-fsa/sherpa-onnx`,
-tag `asr-models`). The two models are byte-identical across platforms:
+sherpa-onnx provides ready-made Mac libraries, from the same place the Android app
+gets its models (`k2-fsa/sherpa-onnx`, tag `asr-models`). The model files are exactly
+the same on both platforms:
 
-| | id | size |
+| | Name | Size |
 |---|---|---|
 | Live preview | `streaming-zipformer-en-20M-int8` | 128 MB |
-| Accurate pass | `parakeet-tdt-0.6b-v3-int8` | 487 MB |
+| Accurate transcript | `parakeet-tdt-0.6b-v3-int8` | 487 MB |
 
-Expect the accurate pass to run **substantially faster than real time** on
-Apple silicon — the phone is the constrained device here, not the laptop. If M-series
-throughput makes the two-pass split unnecessary, collapse it: run Parakeet on a
-short rolling window and drop the streaming model entirely. That would remove
-128 MB of download and an entire engine.
+We expected the accurate model to run much faster than real time on Apple silicon.
+The phone is the slow device here, not the laptop. If it was fast enough, we could
+drop the two-step approach: run Parakeet on short stretches of audio as they come in
+and remove the preview model completely. That would cut 128 MB from the download and
+a whole engine from the code.
 
-**Do not assume this.** Measure it before designing around it. The whole reason
-the Android app has two passes is that Parakeet cannot stream — a rolling-window
-workaround has its own accuracy cost at the boundaries, and it needs to be
-quantified rather than hoped for.
+We didn't assume this. We measured it first. The Android app uses two steps because
+Parakeet can't process audio as a continuous stream. Cutting audio into short
+stretches can hurt accuracy where the cuts fall, so that cost had to be measured, not
+guessed.
 
-**Measured (M3 Pro, sherpa-onnx 1.13.8 static, int8):** 64 s of speech in 3.5 s,
-so **18× real time**, with the model loading in 0.7 s. Throughput by thread count:
-2 threads 10×, 4 threads 16×, 5 threads 18×, 8 threads 14×. It peaks at the
-number of performance cores, because the efficiency cores slow each step down.
-The app uses `hw.perflevel0.physicalcpu`. CoreML is not an option with the
-prebuilt libraries: sherpa-onnx's macOS build logs "CoreML is for Apple only
-since onnxruntime>=1.15" and falls back to CPU.
+**Results (M3 Pro, sherpa-onnx 1.13.8, int8 model):** 64 seconds of speech took 3.5
+seconds, so **18 times faster than real time**. The model loads in 0.7 seconds. Speed
+by number of threads:
 
-So the streaming model is dropped. Instead of a fixed rolling window, Silero
-VAD cuts each stream into utterances and Parakeet decodes each one as it ends.
-That removes the boundary problem, because cuts fall in silence, and it
-removes the 128 MB model. Lines appear a second or two after someone stops
-speaking. A monologue is cut at 20 s, so lines keep coming during long turns.
+| Threads | Speed |
+|---|---|
+| 2 | 10× |
+| 4 | 16× |
+| 5 | 18× |
+| 8 | 14× |
 
----
+It's fastest when it uses exactly the number of performance cores. Adding the
+efficiency cores slows each step down. The app reads the number of performance cores
+from `hw.perflevel0.physicalcpu`. CoreML (Apple's AI engine) isn't an option with the
+ready-made libraries. sherpa-onnx's Mac version says "CoreML is for Apple only since
+onnxruntime>=1.15" and uses the processor instead.
 
-## 5. Storage and the shared format
-
-The Mac app is a peer, not a client. No sync server, no account — that is the
-product, not an unfinished part of it.
-
-What the two platforms share is **the file format**, and the Android app already
-has both halves of it:
-
-- `scribe.transcript.v1` — a single meeting's transcript, from `Exporters.json`
-- `scribe.backup.v1` — the whole library as a zip, from `Backup.kt`
-
-`scribe.backup.v1` is the interchange format. It is already a zip containing a
-manifest plus `audio/<id>/seg_NNNNN.pcm`, its import path is already additive
-and non-destructive, and it already round-trips on Android (verified: export 1
-meeting → restore → 2 meetings, audio byte-identical).
-
-So "move my meetings to my Mac" needs no new format and no new protocol. Export
-on the phone, AirDrop the zip, import on the Mac. **The Mac app must read and
-write `scribe.backup.v1` unchanged.** If a field needs adding, it is added on
-both platforms in the same change, or the version is bumped.
-
-A local SQLite store with the same two tables (`meetings`, `lines`) keeps the
-two implementations close enough to reason about together. The schema is small
-enough that sharing code across Kotlin and Swift would cost more than it saves.
+So we dropped the preview model. Instead of cutting audio at fixed points, a voice
+detector (Silero VAD) cuts each stream wherever someone stops talking, and Parakeet
+transcribes each piece as soon as it ends. This avoids the accuracy problem, because
+the cuts land in silence, and it removes the 128 MB model. Lines appear a second or
+two after someone stops speaking. If someone talks for a long time, their speech is
+cut every 20 seconds, so lines keep appearing.
 
 ---
 
-## 6. Shape of the app
+## 5. Storage and a shared file format
 
-A menu-bar app, not a window-first one. Recording a meeting is something you
-start and then ignore; a Dock icon and a window are ceremony around a toggle.
+The Mac app works on its own. It isn't a client of some server. There's no sync server
+and no account, and that's the point, not something unfinished.
 
-- **Menu bar:** record/stop, elapsed time, a level meter to prove it is hearing
-  something, and recent meetings.
-- **Main window:** the library — search, read, rename, export. Opened
-  deliberately, except on the very first launch: an app launched from Finder
-  that shows only a small menu bar icon looks like it failed to open.
-- **During a call:** the transcript itself, line by line. §4 removed the need for a
-  separate preview.
+What the two apps share is **the file format**. The Android app already has both parts:
 
-Everything the Android app learned about first-run applies: recording works
-before the models finish downloading, audio is kept, and it transcribes when
-they land. Do not gate recording on a 490 MB download.
+- `scribe.transcript.v1`: one meeting's transcript, from `Exporters.json`
+- `scribe.backup.v1`: the whole library as a zip file, from `Backup.kt`
+
+`scribe.backup.v1` is how the apps would exchange meetings. It's already a zip file
+with a list of meetings plus the audio files (`audio/<id>/seg_NNNNN.pcm`). Restoring
+it only adds meetings and never deletes anything. It already works on Android: we
+exported 1 meeting, restored it, got 2 meetings, and the audio was identical.
+
+So moving meetings to a Mac doesn't need a new format or anything new at all. Export
+on the phone, AirDrop the zip, import on the Mac. **The Mac app must read and write
+`scribe.backup.v1` exactly as it is.** If a field needs adding, it's added to both
+apps in the same change, or the version number goes up.
+
+The Mac app uses a local SQLite database with the same two tables (`meetings` and
+`lines`), so the two apps stay similar. The database is small enough that sharing
+code between Kotlin and Swift would cost more than it saves.
+
+---
+
+## 6. How the app is laid out
+
+The app lives in the menu bar instead of opening as a window. You start recording a
+meeting and then forget about it. A Dock icon and a window would be a lot of fuss for
+an on/off switch.
+
+- **Menu bar:** record and stop, time elapsed, a sound level meter to show it's
+  hearing something, and recent meetings.
+- **Main window:** all your meetings. Search, read, rename, export. It only opens when
+  you ask, except the very first time. An app opened from Finder that only shows a
+  tiny menu bar icon looks like it failed to start.
+- **During a call:** the transcript itself, line by line. Section 4 removed the need
+  for a separate preview.
+
+Everything the Android app learned about first launch applies here too. You can record
+before the models finish downloading. The audio is kept and transcribed once they
+arrive. Don't make people wait for a 490 MB download before they can record.
 
 ---
 
 ## 7. Distribution
 
-Direct download, notarized, outside the App Store.
+The plan is a direct download from the web, notarized by Apple, not through the App
+Store.
 
-The App Store is a poor fit and possibly not a fit at all: a 490 MB model
-download on first launch, a Screen Recording entitlement that needs a paragraph
-of explanation, and no in-app purchase to justify review friction. Direct
-distribution also matches the privacy claim — there is no account, so there is
-nothing to sign in to.
+The App Store is a poor fit and may not work at all. The app downloads 490 MB on first
+launch, needs Screen Recording permission that takes a paragraph to explain, and has
+no in-app purchases to make the review process worth it. A direct download also fits
+the privacy promise. There's no account, so there's nothing to sign in to.
 
-Required for distributing to other people: Developer ID signing, hardened
-runtime, notarization, and a signed update path (Sparkle). Unsigned builds of a
-tool that asks for Screen Recording will be refused by users, and rightly so.
+To give the app to other people, it needs: signing with a paid Developer ID, Apple's
+hardened runtime, notarization, and a safe way to update (Sparkle). People will refuse
+an unsigned app that asks for Screen Recording, and they'd be right to.
 
-None of that is needed to run it yourself. `mac/scripts/build-app.sh` builds and
-signs the `.app` locally, either ad-hoc or with a free self-signed certificate
-from `make-signing-identity.sh`. Gatekeeper doesn't check an app you built on
-your own Mac. The self-signed certificate matters only because TCC ties
-Microphone and Screen Recording grants to the signature's designated
-requirement. An ad-hoc signature's requirement is its cdhash, which changes
-with every build. A certificate's requirement is `identifier
-"me.vattitude.scribe.mac" and certificate leaf = H"…"`, which stays the same
-across builds.
+None of that is needed to run it yourself. `mac/scripts/build-app.sh` builds and signs
+the app on your own Mac. It signs either ad-hoc or with a free certificate created by
+`make-signing-identity.sh`. macOS doesn't check apps you built on your own Mac.
+
+The free certificate is only useful because macOS remembers Microphone and Screen
+Recording permission by the app's signature. An ad-hoc signature is based on the app's
+exact contents (its cdhash), so it changes with every build. A certificate signature is
+based on the app's ID and the certificate (`identifier "me.vattitude.scribe.mac" and
+certificate leaf = H"…"`), so it stays the same across builds.
 
 ---
 
 ## 8. Plan
 
-| Phase | Outcome | State |
+| Phase | Goal | Status |
 |---|---|---|
-| 0 | System audio → 16 kHz PCM on disk | ✅ done, `mac/` |
-| 1 | + microphone as a second stream; mixed and separate | ✅ separate at rest, aligned by host time |
-| 2 | sherpa-onnx Swift bindings; Parakeet on a captured file | ✅ C API via a module map; 18× real time |
-| 3 | SQLite store, `scribe.backup.v1` import/export | ◐ store done; backup import/export not yet |
-| 4 | Menu-bar UI, level meter, library window | ✅ plus playback, find, speaker names, exports |
-| 5 | Live preview, or its removal per §4 | ✅ streaming model removed; VAD + Parakeet live |
-| 6 | Signing, notarization, Sparkle | ◐ free local signing; notarization needs a paid account |
+| 0 | Mac audio → 16 kHz audio files on disk | ✅ Done, in `mac/` |
+| 1 | Add the microphone as a second stream | ✅ Saved separately, lined up in time |
+| 2 | sherpa-onnx in Swift, Parakeet transcribing a recorded file | ✅ Uses the C library directly. 18× real time |
+| 3 | SQLite database, import and export of `scribe.backup.v1` | ◐ Database done. Backup import and export not yet |
+| 4 | Menu bar app, level meter, main window | ✅ Plus playback, search, speaker names, exports |
+| 5 | Live preview, or remove it (see section 4) | ✅ Preview model removed. Voice detector + Parakeet run live |
+| 6 | Signing, notarization, Sparkle updates | ◐ Free local signing works. Notarization needs a paid account |
 
-Phase 2 is the one with real unknowns — Swift bindings and Apple-silicon
-throughput. Do it before phases 3–6, because its answer decides whether the
-two-pass architecture survives the port.
+Phase 2 had the real unknowns: whether sherpa-onnx would work from Swift, and how fast
+Apple silicon would be. We did it before phases 3 to 6, because the answer decided
+whether the two-step design would carry over to the Mac.
 
 ---
 
 ## 9. Open questions
 
-1. ~~**Does Parakeet run fast enough on Apple silicon to drop the streaming
-   model?**~~ Yes. See §4.
-2. ~~**Mixed or separate streams at rest?**~~ Separate:
-   `audio/<id>/mic/seg_NNNNN.pcm` and `audio/<id>/system/…`, each padded to
-   the same timeline. "You" and "Them" come from which stream a line was
-   heard on, not from voice clustering. When you use speakers instead of
-   headphones, the mic also picks up the call. A mic line that repeats a
-   system line with the same words at the same moment is dropped as echo.
-   The setting is on by default and can be turned off.
-3. **How is the Screen Recording prompt worded?** The highest-risk sentence in
-   a privacy-first product. macOS writes the system prompt itself. The app's
-   own card before it says why ScreenCaptureKit is the only way to hear the
-   call, that the smallest allowed frame (2×2 pixels) is thrown away, and that
-   nothing leaves the Mac. That wording still needs a pass by someone who
-   isn't a developer.
-4. **Does a meeting recorded on the Mac need to open on the phone?**
-   `scribe.backup.v1` already permits it in both directions. Worth confirming
-   anyone wants it before building UI for it.
+1. ~~**Is Parakeet fast enough on Apple silicon to drop the preview model?**~~ Yes.
+   See section 4.
+2. ~~**Save the two streams mixed or separate?**~~ Separate:
+   `audio/<id>/mic/seg_NNNNN.pcm` and `audio/<id>/system/…`, both lined up on the
+   same timeline. "You" and "Them" come from which stream a line was heard in, not
+   from guessing voices. If you use speakers instead of headphones, the microphone
+   also picks up the call. When a microphone line has the same words at the same
+   moment as a call line, it's treated as an echo and dropped. This is on by default
+   and can be turned off.
+3. **How should the Screen Recording request be worded?** This is the most important
+   sentence in an app built on privacy. macOS writes its own request. Before that, the
+   app shows its own card saying why this is the only way to hear the call, that the
+   smallest allowed picture (2×2 pixels) is thrown away, and that nothing leaves the
+   Mac. That wording still needs a review by someone who isn't a developer.
+4. **Should a meeting recorded on the Mac open on the phone?** `scribe.backup.v1`
+   already allows it in both directions. We should check that anyone wants this before
+   building it.
