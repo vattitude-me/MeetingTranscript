@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/img/logo.png" width="128" alt="Scribe">
+  <img src="docs/img/logo.png" width="128" alt="Meeting Transcript">
 </p>
 
-<h1 align="center">Scribe</h1>
+<h1 align="center">Meeting Transcript</h1>
 
 <p align="center">
   Tap a home-screen widget, record the meeting, get a timestamped transcript.<br>
@@ -14,13 +14,13 @@
 ## What it does
 
 You are on a call on your laptop. You put your phone next to it and tap one widget.
-Scribe records the room, and when you tap stop it turns that audio into a transcript —
+It records the room, and when you tap stop it turns that audio into a transcript —
 line by line, each with a timestamp, each individually shareable.
 
 There is no account, no upload, and no network call except the one-time model download.
 
 **Why not the recorder app already on your phone?** Because it hands you a wall of text
-with no idea that four people were in the room. Scribe separates the voices, so the
+with no idea that four people were in the room. This app separates the voices, so the
 transcript says who spoke, and a **Conversation** view says who spoke for how long, who
 asked the questions and who talked over whom. All of it on the phone, with nothing
 uploaded — not because a server would be hard, but because a meeting recording should
@@ -29,7 +29,7 @@ version, including what we deliberately do *not* claim.
 
 **Stage 1 (this repo, today): audio → text.**
 **Stage 2 (deliberately out of scope for v0.1): summaries and action points**, produced by
-whatever model or agent you like, from the JSON transcript Scribe exports. See
+whatever model or agent you like, from the JSON transcript the app exports. See
 [docs/PLAN.md](docs/PLAN.md) for why the split exists.
 
 ## Install
@@ -39,30 +39,55 @@ Grab the APK from [Releases](../../releases) and sideload it on an arm64 Android
 
 On first launch:
 
-1. Tap **Download model** — about 615 MB total (two models: a small streaming one for the
-   live preview, and the large accurate one), once, over Wi-Fi.
-2. Grant the microphone permission.
-3. Long-press your home screen → **Widgets** → **Scribe** → drop the 1×1 tile somewhere reachable.
+1. Tap **Download** — about 615 MB total (two models: a small streaming one for the
+   live preview, and the large accurate one), once. It waits for Wi-Fi unless you
+   choose to spend mobile data, carries on in the background if you leave the app,
+   and resumes where it stopped if the connection drops.
+2. Tap **Record**. The microphone permission is asked for then, when it is needed,
+   not the moment the app opens.
+3. Once the models are in, a card offers to put the 1×1 record tile on your home
+   screen. Settings → **Add the home-screen widget** does the same later.
 
 You can record before the model finishes downloading. The audio waits on disk and
 transcribes itself once the model is there.
 
 ## Using it
 
-- **Tap the widget** to start. The tile turns red and a notification shows the elapsed time,
-  with a live, rough preview of the transcript as it picks up the room.
-- **Tap it again** to stop. The accurate transcription pass starts by itself and replaces
-  the live preview once it's done.
-- Open a meeting to read the transcript. Tap the share icon on any line to send just
-  that line. The overflow menu shares the whole transcript as `.txt`, exports it as
-  Markdown, `.json`, `.srt` or `.vtt`, or copies it **ready for a chatbot** — the
-  transcript with a summarise-and-cite prompt already attached, so handing a meeting
-  to a model is one paste rather than a paste and a retyped prompt.
+**Recording**
+
+- **Tap the widget or Record** to start. The recording screen shows elapsed time, a
+  level meter, and a live, rough preview of the transcript as it picks up the room.
+  While it records, the button on the main screen turns magenta and counts the time.
+- **Mark** drops a bookmark at the current moment ("that was the decision") — it shows
+  up in the transcript where it happened, and you can play the audio from just before it.
+- **Stop** asks you to name the meeting while it is fresh (or skip), and the accurate
+  transcription starts by itself.
+- If the phone runs low on storage it warns you before you start, and stops a recording
+  cleanly rather than failing half-written. If the app is killed mid-recording, the
+  audio already on disk is recovered as a meeting the next time you open it.
+
+**Reading**
+
+- Open a meeting to read the transcript. A banner at the top says what is happening to
+  it — transcribing (with progress), queued, waiting for models, paused, or failed with
+  **Try again** — so nothing happens behind your back when you merely open it.
+- **Find** (magnifier) searches inside the transcript, highlights every match and steps
+  through them. Searching from the main list carries the query into the meeting.
+- **Tap a line** to copy it, share it, or **play from here** — while the recording is
+  still kept, you can hear exactly what was said.
+- **Copy for chatbot** puts the transcript on the clipboard with a summarise-and-cite
+  prompt already attached, so handing a meeting to a model is one paste.
+- Share the whole transcript as `.txt`, or export Markdown, `.json`, `.srt` or `.vtt`.
 - **Speaker labels** appear above a line when the voice changes, once you have turned
   speaker separation on in Settings (an extra 36 MB download, also offline). Tap a label
   to name that voice; the name applies to every line they spoke and follows the
-  transcript into every export. The overflow menu's **Conversation** shows talk time,
-  turns, questions and interruptions per speaker.
+  transcript into every export. **Conversation** in the menu shows talk time per speaker.
+
+**Managing**
+
+- **Swipe a meeting** to delete it, with **Undo**. Long-press for Rename and Delete.
+  Deleting from inside a meeting tells you what goes — minutes of audio, megabytes,
+  transcript lines — before you confirm.
 - **Settings** (the gear, top right) holds your data: export the whole library as a
   single backup file, restore one, decide whether recordings are deleted once they have
   been transcribed, and check which build you are running.

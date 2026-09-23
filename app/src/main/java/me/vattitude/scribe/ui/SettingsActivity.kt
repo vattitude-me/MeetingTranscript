@@ -5,14 +5,21 @@ import android.net.Uri
 import android.os.Bundle
 import android.widget.EditText
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.appcompat.app.AlertDialog
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.vattitude.scribe.R
+import me.vattitude.scribe.asr.ModelDownloadWorker
 import me.vattitude.scribe.asr.ModelManager
 import me.vattitude.scribe.databinding.ActivitySettingsBinding
 import me.vattitude.scribe.export.Backup
@@ -79,6 +86,18 @@ class SettingsActivity : AppCompatActivity() {
         b.identifyRow.setOnClickListener { toggleIdentifySpeakers() }
 
         b.speakerRow.setOnClickListener { confirmSpeakerModels() }
+        b.widgetRow.setOnClickListener { addWidget() }
+
+        // The speaker models download through the same background job as the
+        // speech models, so the row follows that job rather than a coroutine
+        // that died with this screen.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                WorkManager.getInstance(this@SettingsActivity)
+                    .getWorkInfosForUniqueWorkFlow(ModelDownloadWorker.UNIQUE)
+                    .collect { infos -> onDownloadChanged(infos.firstOrNull()) }
+            }
+        }
         b.audioRow.setOnClickListener { confirmClearAudio() }
         b.clearRow.setOnClickListener { confirmClearEverything() }
 
@@ -126,7 +145,7 @@ class SettingsActivity : AppCompatActivity() {
         if (downloadingSpeakers) return
         val missing = ModelManager.missingSpeaker(this)
         if (missing.isEmpty()) {
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle("Speaker models downloaded")
                 .setMessage(
                     if (settings.identifySpeakers)
@@ -143,7 +162,7 @@ class SettingsActivity : AppCompatActivity() {
             return
         }
         val mb = missing.sumOf { it.approxBytes } / 1_000_000
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Download speaker models?")
             .setMessage(
                 "$mb MB, downloaded once. Everything else works without it.\n\n" +
@@ -153,42 +172,71 @@ class SettingsActivity : AppCompatActivity() {
                     "people."
             )
             .setNegativeButton("Not now", null)
-            .setPositiveButton("Download") { _, _ -> downloadSpeakerModels(missing) }
+            .setPositiveButton("Download") { _, _ -> downloadSpeakerModels() }
             .show()
     }
 
-    private fun downloadSpeakerModels(models: List<ModelManager.Model>) {
+    /**
+     * Queued as the whole missing set, not just the speaker pair: the job is
+     * unique and replaces whatever was queued, so asking for less here would
+     * cancel a speech-model download already in progress.
+     */
+    private fun downloadSpeakerModels() {
+        val missing = ModelManager.missing(this)
+        // 37 MB is fine on mobile data; the 600 MB of speech models is not
+        // this row's decision to make.
+        val onlySpeakers = missing.all { it.speaker }
+        ModelDownloadWorker.enqueue(this, missing, allowMobile = onlySpeakers)
         downloadingSpeakers = true
-        b.speakerSub.text = "Downloading\u2026"
-        lifecycleScope.launch {
-            val ok = withContext(Dispatchers.IO) {
-                runCatching {
-                    val total = models.sumOf { it.approxBytes }
-                    var before = 0L
-                    for (m in models) {
-                        ModelManager.download(this@SettingsActivity, m) { done, _ ->
-                            val pct = ((before + done) * 100 / total.coerceAtLeast(1)).toInt()
-                            runOnUiThread {
-                                b.speakerSub.text = "Downloading\u2026 ${pct.coerceIn(0, 100)}%"
-                            }
-                        }
-                        before += m.approxBytes
-                    }
-                }.isSuccess
+        b.speakerSub.text = getString(R.string.speaker_models_queued)
+    }
+
+    private fun onDownloadChanged(info: WorkInfo?) {
+        val wasDownloading = downloadingSpeakers
+        when (info?.state) {
+            WorkInfo.State.RUNNING -> {
+                downloadingSpeakers = true
+                val done = info.progress.getLong(ModelDownloadWorker.KEY_DONE, 0)
+                val total = info.progress.getLong(ModelDownloadWorker.KEY_TOTAL, 0)
+                b.speakerSub.text = if (total > 0) getString(
+                    R.string.speaker_models_progress, (done * 100 / total).toInt().coerceIn(0, 100)
+                ) else getString(R.string.speaker_models_queued)
             }
-            downloadingSpeakers = false
-            refreshSpeakerRow()
-            Snackbar.make(
-                b.root,
-                when {
-                    !ok -> "Download failed"
-                    settings.identifySpeakers -> "Speaker models ready"
-                    // Downloading is not the same as switching on, and saying
-                    // otherwise would promise labels that never appear.
-                    else -> "Downloaded. Turn on “Identify speakers” to use them."
-                },
-                Snackbar.LENGTH_LONG
-            ).show()
+            WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> {
+                if (ModelManager.missingSpeaker(this).isEmpty()) return
+                downloadingSpeakers = true
+                b.speakerSub.setText(R.string.model_title_waiting)
+            }
+            else -> {
+                downloadingSpeakers = false
+                refreshSpeakerRow()
+                if (wasDownloading && info?.state == WorkInfo.State.SUCCEEDED) {
+                    Snackbar.make(
+                        b.root,
+                        // Downloading is not the same as switching on, and saying
+                        // otherwise would promise labels that never appear.
+                        if (settings.identifySpeakers) "Speaker models ready"
+                        else "Downloaded. Turn on “Identify speakers” to use them.",
+                        Snackbar.LENGTH_LONG
+                    ).show()
+                } else if (wasDownloading && info?.state == WorkInfo.State.FAILED) {
+                    Snackbar.make(b.root, R.string.model_title_failed, Snackbar.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun addWidget() {
+        val mgr = android.appwidget.AppWidgetManager.getInstance(this)
+        val provider = android.content.ComponentName(this, me.vattitude.scribe.widget.ScribeWidget::class.java)
+        if (mgr.isRequestPinAppWidgetSupported) {
+            mgr.requestPinAppWidget(provider, null, null)
+        } else {
+            MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.add_widget_title)
+                .setMessage(R.string.add_widget_manual)
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
         }
     }
 
@@ -244,7 +292,7 @@ class SettingsActivity : AppCompatActivity() {
         if (!settings.deleteAudioAfterTranscribe) return
         val choices = listOf(0, 1, 6, 12, 24, 48)
         val current = choices.indexOf(settings.audioGraceHours).coerceAtLeast(0)
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Keep audio for")
             .setSingleChoiceItems(
                 choices.map { graceLabel(it) }.toTypedArray(), current
@@ -272,7 +320,7 @@ class SettingsActivity : AppCompatActivity() {
             b.identifySwitch.isChecked = false
             return
         }
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Identify speakers (beta)")
             .setMessage(
                 getString(R.string.speaker_beta_warning) + "\n\n" +
@@ -313,7 +361,7 @@ class SettingsActivity : AppCompatActivity() {
     private fun chooseCheckIn() {
         val choices = Settings.CHECK_IN_CHOICES
         val current = choices.indexOf(settings.checkInMinutes).coerceAtLeast(0)
-        AlertDialog.Builder(this)
+        MaterialAlertDialogBuilder(this)
             .setTitle("Check in during long recordings")
             .setSingleChoiceItems(
                 choices.map { checkInLabel(it) }.toTypedArray(), current
@@ -334,7 +382,7 @@ class SettingsActivity : AppCompatActivity() {
                 createBackup.launch(Backup.suggestedName())
                 return@launch
             }
-            AlertDialog.Builder(this@SettingsActivity)
+            MaterialAlertDialogBuilder(this@SettingsActivity)
                 .setTitle("Include the audio?")
                 .setMessage(
                     "Transcripts on their own make a small file that restores everything you read.\n\n" +
@@ -395,7 +443,7 @@ class SettingsActivity : AppCompatActivity() {
                 return@launch
             }
             val s = peek.getOrThrow()
-            AlertDialog.Builder(this@SettingsActivity)
+            MaterialAlertDialogBuilder(this@SettingsActivity)
                 .setTitle(if (s.meetings == 1) "Restore 1 meeting?" else "Restore ${s.meetings} meetings?")
                 .setMessage(
                     (if (s.lines == 1) "1 transcript line" else "${s.lines} transcript lines") +
@@ -433,7 +481,7 @@ class SettingsActivity : AppCompatActivity() {
                 Snackbar.make(b.root, "There is no audio to clear", Snackbar.LENGTH_SHORT).show()
                 return@launch
             }
-            AlertDialog.Builder(this@SettingsActivity)
+            MaterialAlertDialogBuilder(this@SettingsActivity)
                 .setTitle("Clear ${Settings.format(audio)} of audio?")
                 .setMessage(
                     "Transcripts are kept and stay readable. Meetings that have not " +
@@ -457,30 +505,43 @@ class SettingsActivity : AppCompatActivity() {
      * is no server-side copy to fall back on, which is the whole point of the app.
      */
     private fun confirmClearEverything() {
+        val dp = resources.displayMetrics.density
         val input = EditText(this).apply {
             hint = "Type DELETE"
-            setPadding(56, 32, 56, 8)
+            isSingleLine = true
         }
-        AlertDialog.Builder(this)
+        val frame = android.widget.FrameLayout(this).apply {
+            setPadding((24 * dp).toInt(), (8 * dp).toInt(), (24 * dp).toInt(), 0)
+            addView(input)
+        }
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle("Delete everything?")
             .setMessage(
                 "Every meeting, transcript and recording is removed from this phone " +
                     "and cannot be recovered. Export a backup first if you want to keep any of it.\n\n" +
                     "The downloaded speech models are kept, so you will not need to download them again."
             )
-            .setView(input)
+            .setView(frame)
             .setNegativeButton("Cancel", null)
             .setPositiveButton("Delete") { _, _ ->
-                if (input.text.toString().trim().equals("DELETE", ignoreCase = true)) {
-                    lifecycleScope.launch {
-                        withContext(Dispatchers.IO) { repo.deleteEverything() }
-                        refreshSizes()
-                        Snackbar.make(b.root, "Everything deleted", Snackbar.LENGTH_LONG).show()
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        WorkManager.getInstance(this@SettingsActivity).cancelAllWorkByTag(
+                            me.vattitude.scribe.asr.TranscribeWorker.WORK_TAG
+                        )
+                        repo.deleteEverything()
                     }
-                } else {
-                    Snackbar.make(b.root, "Not deleted — the word did not match", Snackbar.LENGTH_LONG).show()
+                    refreshSizes()
+                    Snackbar.make(b.root, "Everything deleted", Snackbar.LENGTH_LONG).show()
                 }
             }
             .show()
+        // The button stays off until the word is typed, rather than accepting
+        // the tap and then saying no.
+        val delete = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        delete.isEnabled = false
+        input.doAfterTextChanged {
+            delete.isEnabled = it.toString().trim().equals("DELETE", ignoreCase = true)
+        }
     }
 }

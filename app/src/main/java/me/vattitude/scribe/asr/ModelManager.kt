@@ -187,66 +187,73 @@ object ModelManager {
         }
     }
 
+    /** Where a model's archive accumulates while it downloads. Survives restarts. */
+    fun partFile(context: Context, model: Model): File =
+        File(context.filesDir, "models/.download-${model.id}.part")
+
     /**
-     * Downloads and unpacks the model bundle. Safe to re-run: it stages into a
-     * temp directory and only swaps it in once the archive is fully extracted,
-     * so an interrupted download never leaves a half-model that looks ready.
+     * Bytes already on this phone for [models]: finished ones count in full,
+     * unfinished ones by their partial archive. Lets the UI say "210 of 615 MB"
+     * while a download waits for Wi-Fi, when no worker is reporting progress.
+     */
+    fun bytesOnDisk(context: Context, models: List<Model>): Long =
+        models.sumOf { m ->
+            if (isReady(context, m)) m.approxBytes
+            else partFile(context, m).takeIf { it.exists() }?.length() ?: 0L
+        }
+
+    /**
+     * Downloads and unpacks one model. Safe to re-run and to interrupt.
+     *
+     * The archive is fetched into [partFile] first and only then unpacked.
+     * That costs a moment of extra disk, and buys resume: a 487 MB download
+     * that drops at 90% on a train carries on from 90% with an HTTP Range
+     * request, where streaming straight into the extractor started from zero.
+     * Unpacking stages into a temp directory and swaps it in only when it is
+     * complete, so an interrupted run never leaves a half-model that looks ready.
+     *
+     * @param cancelled polled between reads; returning true abandons the
+     *   download, keeping what has arrived for the next attempt.
      */
     fun download(
         context: Context,
         model: Model,
+        cancelled: () -> Boolean = { false },
         onProgress: (downloadedBytes: Long, totalBytes: Long) -> Unit
     ) {
         val target = modelDir(context, model)
+        val part = partFile(context, model)
+        part.parentFile?.mkdirs()
+        fetch(model, part, cancelled, onProgress, retried = false)
+
         val staging = File(context.filesDir, "models/.staging-${model.id}")
         staging.deleteRecursively()
         staging.mkdirs()
-
-        val conn = (URL(model.urlBase + model.archive).openConnection() as HttpURLConnection).apply {
-            connectTimeout = 30_000
-            readTimeout = 60_000
-            instanceFollowRedirects = true
-        }
-        conn.connect()
-        if (conn.responseCode !in 200..299) {
-            throw IllegalStateException("Model download failed: HTTP ${conn.responseCode}")
-        }
-        val total = conn.contentLengthLong
-        var read = 0L
-
-        conn.inputStream.use { raw ->
-            val counting = object : java.io.FilterInputStream(BufferedInputStream(raw, 1 shl 16)) {
-                override fun read(b: ByteArray, off: Int, len: Int): Int {
-                    val n = super.read(b, off, len)
-                    if (n > 0) { read += n; onProgress(read, total) }
-                    return n
-                }
-            }
+        try {
             if (model.bareModel) {
                 // Published as a plain .onnx, not an archive. Nothing to unpack.
-                FileOutputStream(File(staging, File(model.archive).name)).use { out ->
-                    counting.copyTo(out, 1 shl 16)
-                }
-                target.deleteRecursively()
-                target.parentFile?.mkdirs()
-                if (!staging.renameTo(target)) {
-                    staging.copyRecursively(target, overwrite = true)
-                    staging.deleteRecursively()
-                }
-                Log.i(TAG, "${model.id} ready at $target")
-                return
-            }
-            TarArchiveInputStream(BZip2CompressorInputStream(counting, true)).use { tar ->
-                var entry = tar.nextEntry
-                while (entry != null) {
-                    // Flatten: the archive has a single top-level directory we don't need.
-                    val name = File(entry.name).name
-                    if (!entry.isDirectory && name.isNotEmpty() && !name.startsWith(".")) {
-                        FileOutputStream(File(staging, name)).use { out -> tar.copyTo(out, 1 shl 16) }
+                part.copyTo(File(staging, File(model.archive).name), overwrite = true)
+            } else {
+                TarArchiveInputStream(
+                    BZip2CompressorInputStream(BufferedInputStream(part.inputStream(), 1 shl 16), true)
+                ).use { tar ->
+                    var entry = tar.nextEntry
+                    while (entry != null) {
+                        // Flatten: the archive has a single top-level directory we don't need.
+                        val name = File(entry.name).name
+                        if (!entry.isDirectory && name.isNotEmpty() && !name.startsWith(".")) {
+                            FileOutputStream(File(staging, name)).use { out -> tar.copyTo(out, 1 shl 16) }
+                        }
+                        entry = tar.nextEntry
                     }
-                    entry = tar.nextEntry
                 }
             }
+        } catch (e: Throwable) {
+            // A corrupt archive would fail the same way on every resume; start
+            // it over next time instead of retrying a bad file forever.
+            staging.deleteRecursively()
+            part.delete()
+            throw e
         }
 
         target.deleteRecursively()
@@ -255,7 +262,64 @@ object ModelManager {
             staging.copyRecursively(target, overwrite = true)
             staging.deleteRecursively()
         }
+        part.delete()
         Log.i(TAG, "${model.id} ready at $target (${target.listFiles()?.size ?: 0} files)")
+    }
+
+    /** Fetches [model]'s archive into [part], resuming from whatever is already there. */
+    private fun fetch(
+        model: Model,
+        part: File,
+        cancelled: () -> Boolean,
+        onProgress: (Long, Long) -> Unit,
+        retried: Boolean
+    ) {
+        val have = if (part.exists()) part.length() else 0L
+        val conn = (URL(model.urlBase + model.archive).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 30_000
+            readTimeout = 60_000
+            instanceFollowRedirects = true
+            if (have > 0) setRequestProperty("Range", "bytes=$have-")
+        }
+        try {
+            conn.connect()
+            val code = conn.responseCode
+            if (code == 416 && have > 0) {
+                // Nothing left to send. Either the file is complete, or the
+                // partial one is longer than the real one and cannot be trusted.
+                if (have == model.approxBytes) { onProgress(have, have); return }
+                part.delete()
+                if (retried) throw IllegalStateException("Model download failed: HTTP 416")
+                return fetch(model, part, cancelled, onProgress, retried = true)
+            }
+            if (code !in 200..299) {
+                throw IllegalStateException("Model download failed: HTTP $code")
+            }
+            // 200 to a Range request means the server ignored it: start over.
+            val resuming = code == 206
+            val offset = if (resuming) have else 0L
+            val total = conn.contentLengthLong.takeIf { it > 0 }?.plus(offset) ?: model.approxBytes
+            var read = offset
+            onProgress(read, total)
+            FileOutputStream(part, resuming).use { out ->
+                BufferedInputStream(conn.inputStream, 1 shl 16).use { input ->
+                    val buf = ByteArray(1 shl 16)
+                    while (true) {
+                        if (cancelled()) throw java.util.concurrent.CancellationException("download stopped")
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        read += n
+                        onProgress(read, total)
+                    }
+                }
+            }
+            if (part.length() < total) {
+                throw java.io.IOException("Download cut off at ${part.length()} of $total bytes")
+            }
+        } finally {
+            conn.disconnect()
+        }
     }
 
     fun delete(context: Context) {

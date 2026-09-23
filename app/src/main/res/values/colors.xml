@@ -23,6 +23,10 @@
     <color name="s_text_dim">#BFC8CC</color>
     <color name="s_text_muted">#8D9699</color>
     <color name="s_text_faint">#6D7679</color>
+    <!-- Transcript body: a touch warmer than s_text for long reading. -->
+    <color name="s_text_transcript">#DBE0E2</color>
+    <!-- Body copy on the cyan reassurance card. -->
+    <color name="s_on_cyan_surface">#9FB6BD</color>
 
     <!-- Cyan: interactive -->
     <color name="s_cyan">#6FD3F2</color>

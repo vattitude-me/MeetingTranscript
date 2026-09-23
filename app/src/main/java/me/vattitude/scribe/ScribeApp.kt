@@ -46,7 +46,18 @@ class ScribeApp : Application() {
                     enableVibration(false)
                 }
             )
-            // HIGH, unlike the other two, and deliberately.
+            nm.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_DOWNLOAD,
+                    getString(R.string.channel_download),
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Speech model download progress, and when it is done"
+                    setShowBadge(false)
+                    enableVibration(false)
+                }
+            )
+            // HIGH, unlike the others, and deliberately.
             //
             // The recording notification is silent because it says nothing that
             // needs answering. This one does: ignore it and the recording
@@ -70,5 +81,6 @@ class ScribeApp : Application() {
         const val CHANNEL_RECORDING = "recording"
         const val CHANNEL_TRANSCRIBE = "transcribe"
         const val CHANNEL_CHECK_IN = "check_in"
+        const val CHANNEL_DOWNLOAD = "download"
     }
 }

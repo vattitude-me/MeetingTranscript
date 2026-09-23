@@ -99,6 +99,20 @@
                         android:layout_gravity="center_vertical"
                         android:layout_marginStart="8dp" />
                 </LinearLayout>
+
+                <View style="@style/SettingsDivider" />
+
+                <LinearLayout
+                    android:id="@+id/widgetRow"
+                    style="@style/SettingsRow">
+
+                    <ImageView style="@style/SettingsRowIcon" android:src="@drawable/ic_widgets" />
+
+                    <LinearLayout style="@style/SettingsRowText">
+                        <TextView style="@style/SettingsRowTitle" android:text="@string/add_widget_row" />
+                        <TextView style="@style/SettingsRowSub" android:text="@string/add_widget_row_sub" />
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
 
             <!-- ── Your data ─────────────────────────────────────────── -->

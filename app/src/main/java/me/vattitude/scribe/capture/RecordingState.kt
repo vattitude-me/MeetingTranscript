@@ -17,7 +17,9 @@ data class Recording(
      */
     val silentMs: Long = 0,
     /** True while the user has paused for a break; no audio is being written. */
-    val paused: Boolean = false
+    val paused: Boolean = false,
+    /** Moments flagged with Mark so far in this recording. */
+    val marks: Int = 0
 ) {
     /** Long enough that a pause in conversation never trips it. */
     val isWorryinglyQuiet: Boolean get() = !paused && silentMs >= QUIET_WARNING_MS

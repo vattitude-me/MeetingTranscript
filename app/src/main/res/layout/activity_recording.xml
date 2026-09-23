@@ -20,16 +20,14 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_stop"
-            android:contentDescription="@string/close"
-            android:rotation="0"
-            app:tint="@color/s_text_dim"
-            android:visibility="gone" />
+            android:src="@drawable/ic_chevron_down"
+            android:contentDescription="@string/minimise"
+            app:tint="@color/s_text_dim" />
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="6dp"
             android:text="@string/recording"
             android:textColor="@color/s_text_dim"
             android:textSize="15sp"
@@ -42,7 +40,7 @@
         android:layout_width="wrap_content"
         android:layout_height="28dp"
         android:layout_marginStart="28dp"
-        android:layout_marginTop="14dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingStart="12dp"
@@ -81,10 +79,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="26dp"
-        android:layout_marginTop="18dp"
+        android:layout_marginTop="8dp"
         android:text="00:00"
         android:textColor="@color/s_text"
-        android:textSize="66sp"
+        android:textSize="56sp"
         android:fontFamily="@font/serif_regular"
         android:fontFeatureSettings="tnum" />
 
@@ -94,18 +92,18 @@
         android:layout_height="wrap_content"
         android:layout_marginStart="28dp"
         android:layout_marginEnd="28dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="2dp"
         android:textColor="@color/s_text_muted"
-        android:textSize="15sp"
+        android:textSize="14sp"
         android:lineSpacingMultiplier="1.35"
         android:fontFamily="@font/serif_regular" />
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="150dp"
+        android:layout_height="96dp"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginTop="28dp"
+        android:layout_marginTop="16dp"
         android:background="@drawable/surface_meter">
 
         <me.vattitude.scribe.ui.LevelMeterView
@@ -122,7 +120,7 @@
         android:orientation="horizontal"
         android:layout_marginStart="24dp"
         android:layout_marginEnd="24dp"
-        android:layout_marginTop="10dp">
+        android:layout_marginTop="8dp">
 
         <TextView
             android:id="@+id/levelHint"
@@ -153,7 +151,7 @@
         android:padding="18dp"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginTop="24dp">
+        android:layout_marginTop="14dp">
 
         <ImageView
             android:id="@+id/infoIcon"
@@ -189,18 +187,71 @@
                 android:textSize="13sp"
                 android:lineSpacingMultiplier="1.4"
                 android:fontFamily="@font/serif_regular" />
+
+            <!-- Only on the silence warning. Hides it until the mic hears
+                 something again, for a room that is quiet on purpose. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/infoDismiss"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="-12dp"
+                android:text="@string/dismiss"
+                android:textColor="@color/s_warn"
+                android:visibility="gone" />
         </LinearLayout>
     </LinearLayout>
 
-    <View
+    <!-- The rough live transcript. It is proof the mic is hearing words, not
+         just noise; the accurate transcript is made after stop. -->
+    <LinearLayout
+        android:id="@+id/livePanel"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="14dp"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="12dp"
+        android:background="@drawable/surface_card">
+
+        <TextView
+            android:id="@+id/liveLabel"
+            style="@style/TextRole.Overline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/live_label" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/liveScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fadingEdgeLength="24dp"
+            android:requiresFadingEdge="vertical"
+            android:scrollbars="none">
+
+            <TextView
+                android:id="@+id/liveText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="6dp"
+                android:paddingBottom="14dp"
+                android:text="@string/live_waiting"
+                android:textColor="@color/s_text_faint"
+                android:textSize="16sp"
+                android:lineSpacingMultiplier="1.35"
+                android:fontFamily="@font/serif_regular" />
+        </androidx.core.widget.NestedScrollView>
+    </LinearLayout>
 
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingBottom="40dp">
+        android:paddingTop="18dp"
+        android:paddingBottom="28dp">
 
         <ImageButton
             android:id="@+id/stop"
@@ -228,5 +279,29 @@
             android:scaleType="centerInside"
             android:contentDescription="@string/pause_recording"
             app:tint="@color/s_text_muted" />
+
+        <!-- Mirrors pause on the other side. Flags this moment so it is easy
+             to find in the transcript later. -->
+        <ImageButton
+            android:id="@+id/mark"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_gravity="center_vertical|end"
+            android:layout_marginEnd="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_bookmark"
+            android:scaleType="centerInside"
+            android:contentDescription="@string/mark_moment"
+            app:tint="@color/s_cyan" />
+
+        <TextView
+            android:id="@+id/markCount"
+            style="@style/TextRole.Caption"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="24dp"
+            android:textColor="@color/s_cyan"
+            android:visibility="gone" />
     </FrameLayout>
 </LinearLayout>

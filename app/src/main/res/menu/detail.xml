@@ -1,29 +1,45 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- The three things done most often are on the bar with icons; the rest are
+     in the overflow. Share used to be the only icon, with Copy for a chatbot —
+     the most common reason to open a transcript — buried behind the dots. -->
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
-        android:id="@+id/action_share_text"
-        android:title="Share transcript"
-        android:icon="@android:drawable/ic_menu_share"
-        app:showAsAction="ifRoom" />
-    <item
-        android:id="@+id/action_rename"
-        android:title="Rename"
-        app:showAsAction="never" />
+        android:id="@+id/action_find"
+        android:title="@string/find"
+        android:icon="@drawable/ic_search"
+        app:iconTint="@color/s_text_dim"
+        app:showAsAction="always" />
     <item
         android:id="@+id/action_prompt"
-        android:title="Copy for a chatbot"
-        app:showAsAction="never" />
+        android:title="@string/copy_prompt"
+        android:icon="@drawable/ic_copy"
+        app:iconTint="@color/s_text_dim"
+        app:showAsAction="always" />
     <item
-        android:id="@+id/action_speakers"
-        android:title="Conversation"
-        app:showAsAction="never" />
+        android:id="@+id/action_share_text"
+        android:title="@string/share"
+        android:icon="@drawable/ic_share"
+        app:iconTint="@color/s_text_dim"
+        app:showAsAction="always" />
     <item
-        android:id="@+id/action_speaker_count"
-        android:title="Fix speaker count"
+        android:id="@+id/action_rename"
+        android:title="@string/rename"
         app:showAsAction="never" />
     <item
         android:id="@+id/action_export_as"
-        android:title="Export as…"
+        android:title="@string/export_as"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_speakers"
+        android:title="@string/conversation"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_speaker_count"
+        android:title="@string/fix_speaker_count"
+        app:showAsAction="never" />
+    <item
+        android:id="@+id/action_delete"
+        android:title="@string/delete"
         app:showAsAction="never" />
 </menu>

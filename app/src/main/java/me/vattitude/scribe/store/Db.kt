@@ -49,6 +49,9 @@ data class Line(
     val speaker: Int = -1
 )
 
+/** A moment the user flagged while recording, in milliseconds of audio. */
+data class Mark(val id: Long, val meetingId: Long, val tMs: Long)
+
 class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, null, VERSION) {
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -97,6 +100,21 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, 
             )
             """.trimIndent()
         )
+        createMarks(db)
+    }
+
+    private fun createMarks(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS marks (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              meeting_id INTEGER NOT NULL,
+              t_ms INTEGER NOT NULL,
+              FOREIGN KEY(meeting_id) REFERENCES meetings(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_marks_meeting ON marks(meeting_id, t_ms)")
     }
 
     /**
@@ -125,11 +143,15 @@ class Db(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, 
             // asked or did not know, and clustering falls back to a threshold.
             db.execSQL("ALTER TABLE meetings ADD COLUMN expected_speakers INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldV < 4) {
+            // Moments flagged with Mark while recording.
+            createMarks(db)
+        }
     }
 
     companion object {
         private const val NAME = "scribe.db"
-        private const val VERSION = 3
+        private const val VERSION = 4
 
         @Volatile private var instance: Db? = null
         fun get(context: Context): Db =
@@ -183,8 +205,13 @@ class Repo(context: Context) {
 
     fun delete(id: Long) {
         val m = meeting(id)
-        db.writableDatabase.delete("lines", "meeting_id=?", arrayOf(id.toString()))
-        db.writableDatabase.delete("meetings", "id=?", arrayOf(id.toString()))
+        val arg = arrayOf(id.toString())
+        // Foreign keys are not enforced on this connection, so the cascade in
+        // the schema is documentation; delete the children by hand.
+        db.writableDatabase.delete("lines", "meeting_id=?", arg)
+        db.writableDatabase.delete("speakers", "meeting_id=?", arg)
+        db.writableDatabase.delete("marks", "meeting_id=?", arg)
+        db.writableDatabase.delete("meetings", "id=?", arg)
         m?.segmentDir?.deleteRecursively()
     }
 
@@ -192,6 +219,8 @@ class Repo(context: Context) {
     fun deleteEverything() {
         val dirs = meetings().map { it.segmentDir }
         db.writableDatabase.delete("lines", null, null)
+        db.writableDatabase.delete("speakers", null, null)
+        db.writableDatabase.delete("marks", null, null)
         db.writableDatabase.delete("meetings", null, null)
         dirs.forEach { runCatching { it.deleteRecursively() } }
     }
@@ -295,6 +324,27 @@ class Repo(context: Context) {
         db.writableDatabase.delete("lines", "meeting_id=?", arrayOf(meetingId.toString()))
     }
 
+    fun addMark(meetingId: Long, tMs: Long): Long =
+        db.writableDatabase.insertOrThrow("marks", null, ContentValues().apply {
+            put("meeting_id", meetingId)
+            put("t_ms", tMs)
+        })
+
+    fun deleteMark(id: Long) {
+        db.writableDatabase.delete("marks", "id=?", arrayOf(id.toString()))
+    }
+
+    fun marks(meetingId: Long): List<Mark> =
+        db.readableDatabase.rawQuery(
+            "SELECT id, meeting_id, t_ms FROM marks WHERE meeting_id=? ORDER BY t_ms",
+            arrayOf(meetingId.toString())
+        ).use { c -> buildList { while (c.moveToNext()) add(Mark(c.getLong(0), c.getLong(1), c.getLong(2))) } }
+
+    fun lineCount(meetingId: Long): Int =
+        db.readableDatabase.rawQuery(
+            "SELECT COUNT(*) FROM lines WHERE meeting_id=?", arrayOf(meetingId.toString())
+        ).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
     fun nextLineIdx(meetingId: Long): Int =
         db.readableDatabase.rawQuery(
             "SELECT COALESCE(MAX(idx), -1) + 1 FROM lines WHERE meeting_id=?",
@@ -331,6 +381,23 @@ class Repo(context: Context) {
         ).use { c ->
             buildMap { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
         }
+
+    /**
+     * The first line of each meeting that contains [query], so a search result
+     * shows why it matched instead of the meeting's opening words.
+     */
+    fun matchSnippets(query: String): Map<Long, String> {
+        val q = "%" + query.trim() + "%"
+        return db.readableDatabase.rawQuery(
+            """SELECT meeting_id, text FROM lines
+               WHERE text LIKE ? AND idx = (
+                 SELECT MIN(idx) FROM lines l2
+                 WHERE l2.meeting_id = lines.meeting_id AND l2.text LIKE ?)""".trimIndent(),
+            arrayOf(q, q)
+        ).use { c ->
+            buildMap { while (c.moveToNext()) put(c.getLong(0), c.getString(1)) }
+        }
+    }
 
     fun meetings(): List<Meeting> =
         db.readableDatabase.rawQuery("SELECT * FROM meetings ORDER BY started_at DESC", null)

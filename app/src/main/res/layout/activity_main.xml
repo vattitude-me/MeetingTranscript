@@ -148,6 +148,93 @@
                 android:text="@string/model_download"
                 android:textSize="15sp"
                 app:cornerRadius="16dp" />
+
+            <!-- Only while waiting for Wi-Fi: spend mobile data instead. -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/modelMobile"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginTop="8dp"
+                android:text="@string/model_use_mobile"
+                app:cornerRadius="16dp"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/modelWhat"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="4dp"
+                android:text="@string/model_whats_in" />
+        </LinearLayout>
+
+        <!-- Offered once the models are in, when no widget is placed yet. -->
+        <LinearLayout
+            android:id="@+id/widgetCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="@drawable/surface_card"
+            android:paddingStart="16dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="8dp"
+            android:paddingEnd="4dp"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="12dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:src="@drawable/ic_widgets"
+                android:contentDescription="@null"
+                app:tint="@color/s_cyan" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:layout_marginStart="13dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/add_widget_title"
+                    android:textColor="@color/s_text"
+                    android:textSize="15sp"
+                    android:fontFamily="@font/serif_semibold" />
+
+                <TextView
+                    style="@style/TextRole.Body"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textSize="13sp"
+                    android:text="@string/add_widget_body" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/widgetAdd"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="-12dp"
+                    android:text="@string/add_widget" />
+            </LinearLayout>
+
+            <ImageButton
+                android:id="@+id/widgetDismiss"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginTop="-10dp"
+                android:padding="12dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_close"
+                android:contentDescription="@string/dismiss"
+                app:tint="@color/s_text_muted" />
         </LinearLayout>
 
         <!-- Recording works before the models land: say so where it is read. -->
@@ -189,7 +276,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="3dp"
                     android:text="@string/rec_already_works_body"
-                    android:textColor="#9FB6BD"
+                    android:textColor="@color/s_on_cyan_surface"
                     android:textSize="13sp"
                     android:lineSpacingMultiplier="1.35"
                     android:fontFamily="@font/serif_regular" />

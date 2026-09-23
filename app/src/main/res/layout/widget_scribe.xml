@@ -12,7 +12,7 @@
         android:layout_width="28dp"
         android:layout_height="28dp"
         android:src="@drawable/ic_mic"
-        android:contentDescription="@string/widget_label" />
+        android:contentDescription="@null" />
 
     <TextView
         android:id="@+id/widget_label"
@@ -20,7 +20,8 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
         android:text="@string/start_recording"
-        android:textColor="@color/scribe_on_primary"
-        android:textSize="11sp"
+        android:textColor="@color/s_text"
+        android:textSize="12sp"
+        android:fontFamily="sans-serif-medium"
         android:maxLines="1" />
 </LinearLayout>

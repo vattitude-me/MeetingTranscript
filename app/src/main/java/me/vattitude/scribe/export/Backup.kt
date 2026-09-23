@@ -58,7 +58,7 @@ object Backup {
                 for (m in meetings) {
                     val lines = repo.lines(m.id)
                     lineCount += lines.size
-                    arr.put(meetingJson(m, lines))
+                    arr.put(meetingJson(m, lines, repo.marks(m.id).map { it.tMs }))
                 }
                 root.put("meetings", arr)
 
@@ -179,6 +179,9 @@ object Backup {
                 }
                 if (lines.isNotEmpty()) repo.appendLines(newId, lines)
                 lineCount += lines.size
+                mo.optJSONArray("marks")?.let { ma ->
+                    for (j in 0 until ma.length()) repo.addMark(newId, ma.optLong(j))
+                }
 
                 repo.setProgress(newId, mo.optInt("segments_done"), mo.optString("asr_model_id").ifEmpty { null })
                 // A restored meeting with a transcript is done; one without still
@@ -218,7 +221,7 @@ object Backup {
         throw BadBackup("Not a Meeting Transcript backup — no manifest inside")
     }
 
-    private fun meetingJson(m: Meeting, lines: List<Line>): JSONObject = JSONObject().apply {
+    private fun meetingJson(m: Meeting, lines: List<Line>, marks: List<Long>): JSONObject = JSONObject().apply {
         put("id", m.id)
         put("title", m.title)
         put("started_at", m.startedAt)
@@ -238,6 +241,8 @@ object Backup {
                     .put("confidence", l.confidence)
             )
         })
+        // Optional: readers that predate marks ignore the key.
+        if (marks.isNotEmpty()) put("marks", JSONArray().apply { marks.forEach { put(it) } })
     }
 
     fun suggestedName(): String {

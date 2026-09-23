@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import me.vattitude.scribe.Notify
 import me.vattitude.scribe.R
 import me.vattitude.scribe.ScribeApp
 import me.vattitude.scribe.asr.EarlyTranscriber
@@ -81,6 +82,12 @@ class RecorderService : Service() {
     private var worker: Thread? = null
     private var meetingId = -1L
 
+    /** Marks added this recording; carried on every published [Recording]. */
+    @Volatile private var markCount = 0
+
+    /** Set when the loop stopped itself because storage ran out. */
+    @Volatile private var stoppedForSpace = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,6 +96,7 @@ class RecorderService : Service() {
             ACTION_PAUSE -> setPaused(true)
             ACTION_RESUME -> setPaused(false)
             ACTION_KEEP_RECORDING -> keepRecording()
+            ACTION_MARK -> mark()
             else -> startRecording()
         }
         return START_STICKY
@@ -107,6 +115,11 @@ class RecorderService : Service() {
         pausedTotalMs = 0
         pausedSince = 0
         paused = false
+        markCount = 0
+        stoppedForSpace = false
+        // Here as well as in the app's Record button: the widget starts
+        // recordings too, and must not show the last meeting's words.
+        LiveTranscript.reset()
         checkInAskedAt = 0
         // Read once per recording: changing the interval mid-meeting would move
         // a deadline the user is already being measured against.
@@ -201,7 +214,7 @@ class RecorderService : Service() {
                         Recording(
                             meetingId, startedAt,
                             Audio.bytesToMs(writer.totalSamples * Audio.BYTES_PER_SAMPLE),
-                            0f, 0, paused = true
+                            0f, 0, paused = true, marks = markCount
                         )
                     )
                     continue
@@ -228,7 +241,7 @@ class RecorderService : Service() {
                     while (i < end) { val a = kotlin.math.abs(buf[i].toInt()); if (a > wPeak) wPeak = a; i += 4 }
                     if (wPeak > peak) peak = wPeak
                     RecordingState.set(
-                        Recording(meetingId, startedAt, elapsed, wPeak / 32768f, silentMs)
+                        Recording(meetingId, startedAt, elapsed, wPeak / 32768f, silentMs, marks = markCount)
                     )
                     w = end
                 }
@@ -238,7 +251,7 @@ class RecorderService : Service() {
                 // disk we are judging, and a stalled read should not look loud.
                 val bufferMs = Audio.bytesToMs(n.toLong() * Audio.BYTES_PER_SAMPLE)
                 silentMs = if (level < Recording.SILENCE_LEVEL) silentMs + bufferMs else 0
-                RecordingState.set(Recording(meetingId, startedAt, elapsed, level, silentMs))
+                RecordingState.set(Recording(meetingId, startedAt, elapsed, level, silentMs, marks = markCount))
 
                 val now = System.currentTimeMillis()
 
@@ -266,12 +279,22 @@ class RecorderService : Service() {
                 val quiet = silentMs >= Recording.QUIET_WARNING_MS
                 if (quiet != lastQuiet) {
                     lastQuiet = quiet
-                    NotificationManagerCompat.from(this).notify(
-                        NOTIF_ID, buildNotification(startedAt, quiet)
-                    )
+                    Notify.post(this, NOTIF_ID, buildNotification(startedAt, quiet))
                 }
                 // Durability beats throughput: get bytes to disk every few seconds.
-                if (now - lastFlush > 3000) { lastFlush = now; writer.flush() }
+                if (now - lastFlush > 3000) {
+                    lastFlush = now
+                    writer.flush()
+                    // An hour of audio is ~115 MB, so a check every few seconds
+                    // sees the floor coming long before a write can fail. Stop
+                    // cleanly while there is still room to close the file and
+                    // let the phone breathe, rather than dying mid-write.
+                    if (dir.usableSpace in 0 until LOW_SPACE_BYTES) {
+                        Log.w(TAG, "stopping: ${dir.usableSpace} bytes free")
+                        stoppedForSpace = true
+                        running = false
+                    }
+                }
             }
         } catch (e: Throwable) {
             Log.e(TAG, "capture loop died", e)
@@ -298,6 +321,7 @@ class RecorderService : Service() {
             repo.finishRecording(meetingId, System.currentTimeMillis(), durationMs, segments)
             RecordingState.set(null)
             ScribeWidget.refresh(this)
+            if (stoppedForSpace) notifyOutOfSpace(durationMs)
 
             if (segments > 0) {
                 // The live pass is a preview, not the product: its small streaming
@@ -335,7 +359,7 @@ class RecorderService : Service() {
         }
         paused = value
         RecordingState.state.value?.let { RecordingState.set(it.copy(paused = value)) }
-        NotificationManagerCompat.from(this).notify(NOTIF_ID, buildNotification(notifStartedAt, quiet = false))
+        Notify.post(this, NOTIF_ID, buildNotification(notifStartedAt, quiet = false))
         ScribeWidget.refresh(this)
     }
 
@@ -420,6 +444,54 @@ class RecorderService : Service() {
         }
     }
 
+    /**
+     * Flags this moment so it can be found in the transcript afterwards.
+     * Ignored while paused: there is no audio at that point to mark.
+     */
+    private fun mark() {
+        // A stale tap on an old notification must not leave an idle service behind.
+        if (!running) { stopSelf(); return }
+        if (paused) return
+        val at = RecordingState.state.value?.elapsedMs ?: return
+        val id = meetingId
+        val app = applicationContext
+        thread(name = "scribe-mark") { runCatching { Repo(app).addMark(id, at) } }
+        markCount++
+        RecordingState.state.value?.let { RecordingState.set(it.copy(marks = markCount)) }
+        Notify.post(this, NOTIF_ID, buildNotification(notifStartedAt, quiet = false))
+    }
+
+    /**
+     * Says the recording stopped itself, and that nothing up to that point was
+     * lost. Without this, a recording that ends early looks like a crash.
+     */
+    private fun notifyOutOfSpace(durationMs: Long) {
+        val open = PendingIntent.getActivity(
+            this, 6, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val minutes = (durationMs / 60_000L).toInt()
+        val n = NotificationCompat.Builder(this, ScribeApp.CHANNEL_CHECK_IN)
+            .setContentTitle("Recording stopped — phone storage is full")
+            .setContentText("The first $minutes min are saved and will be transcribed.")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Stopped at $minutes min because less than 100 MB was left. " +
+                        "Everything recorded up to then is saved and will be transcribed. " +
+                        "Free up space before recording again."
+                )
+            )
+            .setSmallIcon(R.drawable.ic_warning)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        NotificationManagerCompat.from(this).let {
+            try { it.notify(SPACE_NOTIF_ID, n) } catch (_: SecurityException) {}
+        }
+    }
+
     private fun stopRecording() {
         running = false
         worker?.join(5_000)
@@ -461,8 +533,14 @@ class RecorderService : Service() {
         val text = when {
             paused -> "Nothing is being recorded"
             quiet -> "Check the mic isn't covered"
+            markCount == 1 -> "1 moment marked"
+            markCount > 1 -> "$markCount moments marked"
             else -> null
         }
+        val markIntent = PendingIntent.getService(
+            this, 7, Intent(this, RecorderService::class.java).setAction(ACTION_MARK),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
         return NotificationCompat.Builder(this, ScribeApp.CHANNEL_RECORDING)
             .setContentTitle(title)
             .setContentText(text)
@@ -484,6 +562,7 @@ class RecorderService : Service() {
                 toggle
             )
             .addAction(R.drawable.ic_stop, "Stop", stop)
+            .also { if (!paused) it.addAction(R.drawable.ic_bookmark, "Mark", markIntent) }
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .build()
     }
@@ -494,7 +573,15 @@ class RecorderService : Service() {
         const val ACTION_PAUSE = "me.vattitude.scribe.PAUSE"
         const val ACTION_RESUME = "me.vattitude.scribe.RESUME"
         const val ACTION_KEEP_RECORDING = "me.vattitude.scribe.KEEP_RECORDING"
+        const val ACTION_MARK = "me.vattitude.scribe.MARK"
         private const val NOTIF_ID = 1001
+        private const val SPACE_NOTIF_ID = 1005
+
+        /** Below this much free space a recording stops itself. */
+        const val LOW_SPACE_BYTES = 100L * 1024 * 1024
+
+        /** Below this much, starting a recording warns first. ~4 hours of audio. */
+        const val WARN_SPACE_BYTES = 500L * 1024 * 1024
 
         /**
          * Separate from [NOTIF_ID]: this one is dismissible and makes noise.
@@ -522,6 +609,12 @@ class RecorderService : Service() {
 
         fun stop(context: Context) {
             context.startService(Intent(context, RecorderService::class.java).setAction(ACTION_STOP))
+        }
+
+        /** Flags the current moment of the running recording. */
+        fun mark(context: Context) {
+            if (!RecordingState.isRecording) return
+            context.startService(Intent(context, RecorderService::class.java).setAction(ACTION_MARK))
         }
 
         /** Pause or resume the running recording. No-op when nothing is recording. */

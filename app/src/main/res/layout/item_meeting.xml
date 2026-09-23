@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="horizontal"
-    android:background="?attr/selectableItemBackground"
+    android:background="@color/s_bg"
+    android:foreground="?attr/selectableItemBackground"
     android:paddingStart="16dp"
     android:paddingEnd="16dp"
     android:paddingTop="14dp"
@@ -146,7 +147,7 @@
             android:textSize="13sp"
             android:lineSpacingMultiplier="1.35"
             android:fontFamily="@font/serif_regular"
-            android:maxLines="1"
+            android:maxLines="2"
             android:ellipsize="end"
             android:visibility="gone" />
     </LinearLayout>

@@ -129,12 +129,24 @@ class Settings(context: Context) {
         get() = prefs.getInt(KEY_CHECK_IN_MINUTES, DEFAULT_CHECK_IN_MINUTES)
         set(v) = prefs.edit().putInt(KEY_CHECK_IN_MINUTES, v.coerceAtLeast(0)).apply()
 
+    /** The "add the widget" tip on the main screen was dismissed. */
+    var widgetTipDismissed: Boolean
+        get() = prefs.getBoolean(KEY_WIDGET_TIP_DISMISSED, false)
+        set(v) = prefs.edit().putBoolean(KEY_WIDGET_TIP_DISMISSED, v).apply()
+
+    /** Recording has been attempted before, so the permission prompt has been seen. */
+    var askedForMic: Boolean
+        get() = prefs.getBoolean(KEY_ASKED_FOR_MIC, false)
+        set(v) = prefs.edit().putBoolean(KEY_ASKED_FOR_MIC, v).apply()
+
     companion object {
         private const val KEY_DELETE_AUDIO = "delete_audio_after_transcribe"
         private const val KEY_GRACE_HOURS = "audio_grace_hours"
         private const val KEY_CHECK_IN_MINUTES = "check_in_minutes"
         private const val KEY_IDENTIFY_SPEAKERS = "identify_speakers"
         private const val KEY_EARLY_TRANSCRIBE = "transcribe_while_recording"
+        private const val KEY_WIDGET_TIP_DISMISSED = "widget_tip_dismissed"
+        private const val KEY_ASKED_FOR_MIC = "asked_for_mic"
 
         /**
          * 30 minutes, which is the length of the meeting this app is mostly

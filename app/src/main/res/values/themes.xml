@@ -28,6 +28,16 @@
         <item name="colorOnSurfaceVariant">@color/s_text_dim</item>
         <item name="colorOutline">@color/s_outline</item>
         <item name="colorOutlineVariant">@color/s_divider</item>
+        <!-- M3 dialogs and sheets draw on these tonal surfaces. Pinned to the
+             palette so every dialog and sheet is the same colour as the cards. -->
+        <item name="colorSurfaceContainerLowest">@color/s_bg</item>
+        <item name="colorSurfaceContainerLow">@color/s_surface_1</item>
+        <item name="colorSurfaceContainer">@color/s_surface_1</item>
+        <item name="colorSurfaceContainerHigh">@color/s_surface_2</item>
+        <item name="colorSurfaceContainerHighest">@color/s_surface_3</item>
+        <item name="colorSurfaceInverse">@color/s_text</item>
+        <item name="colorOnSurfaceInverse">@color/s_bg</item>
+        <item name="colorPrimaryInverse">@color/s_cyan_container</item>
 
         <item name="android:statusBarColor">@color/s_bg</item>
         <item name="android:navigationBarColor">@color/s_bg</item>
@@ -72,6 +82,32 @@
     <style name="Text.Label" parent="TextAppearance.Material3.LabelLarge">
         <item name="android:fontFamily">@font/serif_semibold</item>
         <item name="fontFamily">@font/serif_semibold</item>
+    </style>
+
+    <!-- Reusable text roles for layouts, so sizes and colours live in one place. -->
+    <style name="TextRole" />
+    <style name="TextRole.SheetTitle">
+        <item name="android:textColor">@color/s_text</item>
+        <item name="android:textSize">20sp</item>
+        <item name="android:fontFamily">@font/serif_semibold</item>
+    </style>
+    <style name="TextRole.Body">
+        <item name="android:textColor">@color/s_text_muted</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:lineSpacingMultiplier">1.35</item>
+        <item name="android:fontFamily">@font/serif_regular</item>
+    </style>
+    <style name="TextRole.Caption">
+        <item name="android:textColor">@color/s_text_muted</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:fontFamily">@font/serif_regular</item>
+    </style>
+    <style name="TextRole.Overline">
+        <item name="android:textColor">@color/s_text_muted</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:fontFamily">@font/serif_semibold</item>
     </style>
 
     <!-- Settings rows: one tappable line, icon + title + subtitle. -->

@@ -20,12 +20,12 @@
     <string name="untitled">Untitled meeting</string>
 
     <string name="lock_it">Lock the screen — it keeps running</string>
-    <string name="lock_it_body">A foreground service with an ongoing notification. Stop it from the notification or the widget without unlocking.</string>
+    <string name="lock_it_body">Recording carries on with the screen off or in another app. Stop, pause or mark a moment from the notification or the widget without unlocking.</string>
 
-    <string name="silent_title">Nothing above the noise floor for 45 seconds</string>
+    <string name="silent_title">The mic has heard nothing for 45 seconds</string>
     <string name="silent_body">Most often something is over the mic, or another app has grabbed the audio input. The file is still being written either way.</string>
 
-    <string name="model_title">Downloading the speech models</string>
+    <string name="model_title">Download the speech models</string>
     <string name="model_download">Download models</string>
     <string name="rec_already_works">Recording already works</string>
     <string name="rec_already_works_body">Audio captured now is saved and queued; it transcribes automatically the moment the download lands. You do not have to wait here.</string>
@@ -64,5 +64,146 @@
     <string name="identify_speakers_sub">Splits the transcript by voice. Often wrong with more than two or three people — it can merge two speakers into one, or attribute words to the wrong person.</string>
     <string name="speaker_models">Speaker models</string>
     <string name="speaker_models_sub">37 MB, downloaded once, runs offline</string>
+    <string name="speaker_models_queued">Downloading… it carries on if you leave this screen.</string>
+    <string name="speaker_models_progress">Downloading… %d%%</string>
     <string name="speaker_beta_warning">Speaker labels are experimental and are often wrong. Two people can be merged into one, and words can be attributed to the wrong person. Read them as a hint, never as a record of who said what.</string>
+
+    <!-- Recording screen -->
+    <string name="minimise">Minimise — keeps recording</string>
+    <string name="mark_moment">Mark this moment</string>
+    <string name="mark">Mark</string>
+    <string name="rec_meta">Started %1$s · stays on this phone</string>
+    <string name="live_waiting">Listening… a rough transcript appears here as people talk. The accurate one is made when you stop.</string>
+    <string name="live_off">Live preview needs the speech models. The recording is fine — it will be transcribed once they are downloaded.</string>
+    <string name="live_label">Live preview · rough</string>
+    <string name="dismiss">Dismiss</string>
+    <plurals name="marks_count">
+        <item quantity="one">%d moment marked</item>
+        <item quantity="other">%d moments marked</item>
+    </plurals>
+    <plurals name="people_count">
+        <item quantity="one">%d person</item>
+        <item quantity="other">%d people</item>
+    </plurals>
+    <string name="paused_label">PAUSED</string>
+    <string name="stopping_label">STOPPING…</string>
+    <string name="silent_for">SILENT FOR %ds</string>
+    <string name="level_starting">Starting…</string>
+    <string name="level_none">No input for %ds</string>
+    <string name="level_quiet">Input level · quiet</string>
+    <string name="level_ok">Input level · picking up audio</string>
+
+    <!-- Stop sheet -->
+    <string name="stop_sheet_title">Name it while you still remember</string>
+    <string name="stop_sheet_hint">Meeting name (optional)</string>
+    <string name="stop_sheet_body">Skip it and the app drafts a name from the first words of the transcript.</string>
+    <string name="stop_sheet_speakers">How many people spoke?</string>
+    <string name="stop_sheet_speakers_body">Optional. Helps speaker labels, which are in beta and often wrong.</string>
+    <string name="not_sure">Not sure</string>
+    <string name="skip">Skip</string>
+    <string name="save">Save</string>
+
+    <!-- Main screen -->
+    <string name="recording_fab">Recording %s</string>
+    <string name="open_recording">Open the recording in progress</string>
+    <string name="add_widget_title">Record from your home screen</string>
+    <string name="add_widget_body">A one-tap widget starts and stops recording without opening the app.</string>
+    <string name="add_widget">Add widget</string>
+    <string name="add_widget_row">Add the home-screen widget</string>
+    <string name="add_widget_row_sub">One tap to start or stop a recording.</string>
+    <string name="add_widget_manual">Your launcher does not support adding widgets from an app. Long-press the home screen, choose Widgets and find Meeting Transcript.</string>
+    <string name="mic_denied">Recording needs the microphone.</string>
+    <string name="mic_denied_forever">Microphone access is off for this app. Turn it on in Settings to record.</string>
+    <string name="open_settings">Settings</string>
+    <string name="low_space_title">Storage is nearly full</string>
+    <string name="low_space_body">Only %1$s free. An hour of recording takes about 115 MB, and a recording stops by itself when less than 100 MB is left.</string>
+    <string name="record_anyway">Record anyway</string>
+    <string name="deleted_meeting">Meeting deleted</string>
+    <string name="undo">Undo</string>
+    <string name="cant_delete_recording">Stop the recording before deleting it.</string>
+    <string name="delete">Delete</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete_meeting_title">Delete “%s”?</string>
+    <string name="delete_meeting_body">%s\n\nNothing is synced anywhere, so this cannot be recovered. Exported copies are unaffected.</string>
+
+    <!-- Model download -->
+    <string name="model_title_downloading">Downloading the speech models</string>
+    <string name="model_title_waiting">Waiting for Wi-Fi</string>
+    <string name="model_title_failed">Download interrupted</string>
+    <string name="model_whats_in">What\'s in the download?</string>
+    <string name="model_use_mobile">Use mobile data</string>
+    <string name="model_resume">Resume download</string>
+    <string name="model_waiting_body">%1$s of %2$s so far. It carries on by itself when the phone is on Wi-Fi.</string>
+    <string name="model_contents">Everything runs on this phone, so the models have to live on it.\n\n• Live preview — %1$s. A small, fast model that shows rough words while you record.\n• Accurate transcript — %2$s. The model that writes the transcript you keep.\n• Speaker models — %3$s. Used only if you turn on Identify speakers.\n\nDownloaded once. After that the app works in aeroplane mode.</string>
+    <string name="model_done_title">Speech models ready</string>
+    <string name="model_done_body">Recordings will now be transcribed on this phone.</string>
+    <string name="channel_download">Downloads</string>
+    <string name="model_pitch">%s, once. After this, transcription runs entirely on this device — no account, no upload, works in aeroplane mode.</string>
+    <string name="model_starting">Starting… it carries on if you close the app.</string>
+    <string name="model_retrying">%1$s of %2$s so far. The connection dropped; it picks up where it left off.</string>
+    <string name="model_failed_body">Stopped after several tries (%s). What already arrived is kept, so resuming does not start again from zero.</string>
+    <string name="model_metered_title">You\'re on mobile data</string>
+    <string name="model_metered_body">About %s left to download. Wait for Wi-Fi and it starts by itself when the phone connects, or use mobile data now.</string>
+    <string name="model_wait_wifi">Wait for Wi-Fi</string>
+
+    <!-- Empty states -->
+    <string name="empty_title">No meetings yet</string>
+    <string name="empty_body">Tap Record when the meeting starts. The audio and the transcript stay on this phone.</string>
+    <string name="search_empty">Nothing matches “%s”</string>
+    <string name="search_empty_body">Searches meeting names and transcript text.</string>
+
+    <!-- Detail screen -->
+    <string name="find">Find in transcript</string>
+    <string name="find_hint">Find in transcript</string>
+    <string name="find_count">%1$d of %2$d</string>
+    <string name="find_none">No matches</string>
+    <string name="previous_match">Previous match</string>
+    <string name="next_match">Next match</string>
+    <string name="copy_prompt">Copy for a chatbot</string>
+    <string name="copied_prompt">Copied — paste it into any chatbot</string>
+    <string name="copied_line">Line copied</string>
+    <string name="share">Share</string>
+    <string name="copy">Copy</string>
+    <string name="play_from_here">Play from here</string>
+    <string name="conversation">Conversation</string>
+    <string name="fix_speaker_count">Fix speaker count</string>
+    <string name="export_as">Export as…</string>
+    <string name="status_waiting">Waiting to be transcribed</string>
+    <string name="status_waiting_models">Waiting for the speech models. It transcribes by itself once they are downloaded.</string>
+    <string name="status_queued">Queued. It starts by itself — nothing to do here.</string>
+    <string name="status_failed">Transcription failed</string>
+    <string name="status_transcribing">Transcribing · %1$d of %2$d parts</string>
+    <string name="transcribe_now">Transcribe now</string>
+    <string name="try_again">Try again</string>
+    <string name="still_recording">This meeting is still being recorded.</string>
+    <string name="mark_line">Marked moment · %s</string>
+    <string name="player_playing">Playing from %s</string>
+    <string name="stop_playback">Stop playback</string>
+    <string name="conversation_caveat">Based on speaker labels, which are in beta and often wrong. Treat these numbers as a rough sketch.</string>
+    <string name="transcript_pending">The transcript appears here as it is made.</string>
+    <string name="open_label">Open</string>
+    <string name="recording_interrupted">The recording was cut off — the app or the phone stopped mid-meeting. What was captured is kept; go back to the list and it is picked up for transcription.</string>
+    <string name="status_transcribing_start">Transcribing</string>
+    <string name="status_transcribing_body">Lines appear below as each part is done. It carries on if you leave this screen.</string>
+    <string name="status_paused">The system paused it part-way through. It picks up where it stopped.</string>
+    <string name="rediarizing">Separating voices again</string>
+    <string name="rediarizing_body">Takes a minute or two. The words stay the same; only the speaker labels change.</string>
+    <string name="remove_mark">Remove mark</string>
+    <string name="voices_beta">%d voices (beta)</string>
+    <string name="tap_to_fix">tap to fix</string>
+    <string name="of_talk">of talk</string>
+    <string name="longest_stretch">longest stretch %s</string>
+    <string name="who_is_this">Who is this?</string>
+    <string name="who_talked_most">Who did most of the talking?</string>
+    <string name="no_audio_to_rediarize">The recording was deleted after transcribing, so voices cannot be separated again.</string>
+    <string name="name_speaker_desc">%s. Tap to name this voice.</string>
+    <plurals name="lines_count">
+        <item quantity="one">%d line</item>
+        <item quantity="other">%d lines</item>
+    </plurals>
+    <plurals name="voices_count">
+        <item quantity="one">%d voice</item>
+        <item quantity="other">%d voices</item>
+    </plurals>
+    <string name="conversation_empty">Turn on Identify speakers in Settings, or fix the speaker count, to see who talked how much.</string>
 </resources>

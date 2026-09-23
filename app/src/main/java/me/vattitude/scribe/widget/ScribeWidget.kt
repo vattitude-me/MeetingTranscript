@@ -7,6 +7,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
+import androidx.core.content.ContextCompat
 import me.vattitude.scribe.R
 import me.vattitude.scribe.capture.RecordingState
 
@@ -38,6 +39,22 @@ class ScribeWidget : AppWidgetProvider() {
             views.setInt(
                 R.id.widget_root, "setBackgroundResource",
                 if (recording) R.drawable.widget_background_active else R.drawable.widget_background
+            )
+            // Colours are set here, not left to the icons' theme tint: a widget
+            // is drawn in the launcher's theme, which made the icon and label
+            // near-invisible on the dark tile. Idle is the app's cyan on dark;
+            // recording is the mic's magenta with its matching dark ink.
+            val ink = ContextCompat.getColor(
+                context, if (recording) R.color.s_on_mic else R.color.s_cyan
+            )
+            views.setInt(R.id.widget_icon, "setColorFilter", ink)
+            views.setTextColor(
+                R.id.widget_label,
+                ContextCompat.getColor(context, if (recording) R.color.s_on_mic else R.color.s_text)
+            )
+            views.setContentDescription(
+                R.id.widget_root,
+                context.getString(if (recording) R.string.stop_recording else R.string.start_recording)
             )
 
             val intent = Intent(context, RecordTrampolineActivity::class.java)
