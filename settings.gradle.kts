@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Scribe"
+rootProject.name = "MeetingTranscript"
 include(":app")
