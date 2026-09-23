@@ -51,6 +51,22 @@ On first launch:
 You can record before the model finishes downloading. The audio waits on disk and
 transcribes itself once the model is there.
 
+### On a Mac
+
+There is also a macOS menu bar app in [mac/](mac). It records the call itself (what
+Zoom, Meet or Teams plays) plus your microphone, so headphones are fine, and it labels
+lines **You** and **Them**. It transcribes live with the same Parakeet model, at about
+18× real time on an M3 Pro. It's built from source for free, with no Apple Developer
+account (macOS 14+, Apple silicon, the Xcode Command Line Tools):
+
+```
+cd mac && scripts/build-app.sh --install
+open ~/Applications/"Meeting Transcript.app"
+```
+
+[mac/README.md](mac/README.md) covers permissions, the command line and keeping
+permission grants across rebuilds.
+
 ## Using it
 
 **Recording**
@@ -196,8 +212,7 @@ upgrade and you will have to uninstall first.
 
 - **Headphones defeat it.** If you listen through headphones the phone only hears your
   half of the conversation. There is nothing software can do about that on a phone; use
-  the laptop speaker. This is the limitation a Mac app removes, by capturing system audio
-  directly — see [docs/MACOS.md](docs/MACOS.md).
+  the laptop speaker, or run the [Mac app](mac), which captures the call's audio directly.
 - **The speaker count is a guess, and often a bad one.** Left to itself, the clusterer
   decides how many voices it heard from a similarity threshold, and no single threshold
   works: swept from 0.2 to 0.9 over one-, two- and three-speaker recordings, none gave
