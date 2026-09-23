@@ -1,6 +1,10 @@
 # Meeting Transcript for macOS
 
-**Status:** design, plus a working capture spike in [`mac/`](../mac). Nothing shipped.
+**Status:** a working menu bar app in [`mac/`](../mac). It records the call and
+your microphone as separate streams and transcribes them live with Parakeet, at
+18× real time on an M3 Pro. It builds and runs from source with no Apple
+Developer account; see [`mac/README.md`](../mac/README.md). It is not notarized
+or distributed yet (phase 6).
 
 The Android app records the room through the phone's microphone. On a Mac the
 interesting audio is not in the room — it is inside the machine, in Zoom, Meet
@@ -28,12 +32,13 @@ they take at a desk, on a Mac, in a browser tab. That is the gap worth filling.
 
 ## 2. What is already proven
 
-`mac/Sources/MeetingTranscript/main.swift` is a ~200-line command-line spike. It
+`mac/Sources/MeetingTranscript/main.swift` is a ~200-line command-line spike
+(`swift run CaptureSpike`). It
 captures system audio via ScreenCaptureKit and writes the exact on-disk format
 the Android transcriber already consumes.
 
 ```
-cd mac && swift run MeetingTranscript 8 ./out
+cd mac && swift run CaptureSpike 8 ./out
 ```
 
 Verified on macOS 26.6 / Swift 6.3 / Apple silicon:
@@ -138,6 +143,20 @@ the Android app has two passes is that Parakeet cannot stream — a rolling-wind
 workaround has its own accuracy cost at the boundaries, and it needs to be
 quantified rather than hoped for.
 
+**Measured (M3 Pro, sherpa-onnx 1.13.8 static, int8):** 64 s of speech in 3.5 s,
+so **18× real time**, with the model loading in 0.7 s. Throughput by thread count:
+2 threads 10×, 4 threads 16×, 5 threads 18×, 8 threads 14×. It peaks at the
+number of performance cores, because the efficiency cores slow each step down.
+The app uses `hw.perflevel0.physicalcpu`. CoreML is not an option with the
+prebuilt libraries: sherpa-onnx's macOS build logs "CoreML is for Apple only
+since onnxruntime>=1.15" and falls back to CPU.
+
+So the streaming model is dropped. Instead of a fixed rolling window, Silero
+VAD cuts each stream into utterances and Parakeet decodes each one as it ends.
+That removes the boundary problem, because cuts fall in silence, and it
+removes the 128 MB model. Lines appear a second or two after someone stops
+speaking. A monologue is cut at 20 s, so lines keep coming during long turns.
+
 ---
 
 ## 5. Storage and the shared format
@@ -175,7 +194,8 @@ start and then ignore; a Dock icon and a window are ceremony around a toggle.
 - **Menu bar:** record/stop, elapsed time, a level meter to prove it is hearing
   something, and recent meetings.
 - **Main window:** the library — search, read, rename, export. Opened
-  deliberately, not on launch.
+  deliberately, except on the very first launch: an app launched from Finder
+  that shows only a small menu bar icon looks like it failed to open.
 - **During a call:** the live preview, if the streaming model survives §4.
 
 Everything the Android app learned about first-run applies: recording works
@@ -194,9 +214,19 @@ of explanation, and no in-app purchase to justify review friction. Direct
 distribution also matches the privacy claim — there is no account, so there is
 nothing to sign in to.
 
-Required regardless: Developer ID signing, hardened runtime, notarization, and a
-signed update path (Sparkle). Unsigned builds of a tool that asks for Screen
-Recording will be — correctly — refused by users.
+Required for distributing to other people: Developer ID signing, hardened
+runtime, notarization, and a signed update path (Sparkle). Unsigned builds of a
+tool that asks for Screen Recording will be refused by users, and rightly so.
+
+None of that is needed to run it yourself. `mac/scripts/build-app.sh` builds and
+signs the `.app` locally, either ad-hoc or with a free self-signed certificate
+from `make-signing-identity.sh`. Gatekeeper doesn't check an app you built on
+your own Mac. The self-signed certificate matters only because TCC ties
+Microphone and Screen Recording grants to the signature's designated
+requirement. An ad-hoc signature's requirement is its cdhash, which changes
+with every build. A certificate's requirement is `identifier
+"me.vattitude.scribe.mac" and certificate leaf = H"…"`, which stays the same
+across builds.
 
 ---
 
@@ -205,12 +235,12 @@ Recording will be — correctly — refused by users.
 | Phase | Outcome | State |
 |---|---|---|
 | 0 | System audio → 16 kHz PCM on disk | ✅ done, `mac/` |
-| 1 | + microphone as a second stream; mixed and separate | |
-| 2 | sherpa-onnx Swift bindings; Parakeet on a captured file | |
-| 3 | SQLite store, `scribe.backup.v1` import/export | |
-| 4 | Menu-bar UI, level meter, library window | |
-| 5 | Live preview, or its removal per §4 | |
-| 6 | Signing, notarization, Sparkle | |
+| 1 | + microphone as a second stream; mixed and separate | ✅ separate at rest, aligned by host time |
+| 2 | sherpa-onnx Swift bindings; Parakeet on a captured file | ✅ C API via a module map; 18× real time |
+| 3 | SQLite store, `scribe.backup.v1` import/export | ◐ store done; backup import/export not yet |
+| 4 | Menu-bar UI, level meter, library window | ✅ plus playback, find, speaker names, exports |
+| 5 | Live preview, or its removal per §4 | ✅ streaming model removed; VAD + Parakeet live |
+| 6 | Signing, notarization, Sparkle | ◐ free local signing; notarization needs a paid account |
 
 Phase 2 is the one with real unknowns — Swift bindings and Apple-silicon
 throughput. Do it before phases 3–6, because its answer decides whether the
@@ -220,12 +250,21 @@ two-pass architecture survives the port.
 
 ## 9. Open questions
 
-1. **Does Parakeet run fast enough on Apple silicon to drop the streaming
-   model?** Decides §4 and phase 5. Measure first.
-2. **Mixed or separate streams at rest?** §3 recommends separate. If the
-   storage layer assumes mixed, "you versus them" becomes expensive to add later.
+1. ~~**Does Parakeet run fast enough on Apple silicon to drop the streaming
+   model?**~~ Yes. See §4.
+2. ~~**Mixed or separate streams at rest?**~~ Separate:
+   `audio/<id>/mic/seg_NNNNN.pcm` and `audio/<id>/system/…`, each padded to
+   the same timeline. "You" and "Them" come from which stream a line was
+   heard on, not from voice clustering. When you use speakers instead of
+   headphones, the mic also picks up the call. A mic line that repeats a
+   system line with the same words at the same moment is dropped as echo.
+   The setting is on by default and can be turned off.
 3. **How is the Screen Recording prompt worded?** The highest-risk sentence in
-   a privacy-first product. Needs a real pass, not developer prose.
+   a privacy-first product. macOS writes the system prompt itself. The app's
+   own card before it says why ScreenCaptureKit is the only way to hear the
+   call, that the smallest allowed frame (2×2 pixels) is thrown away, and that
+   nothing leaves the Mac. That wording still needs a pass by someone who
+   isn't a developer.
 4. **Does a meeting recorded on the Mac need to open on the phone?**
    `scribe.backup.v1` already permits it in both directions. Worth confirming
    anyone wants it before building UI for it.

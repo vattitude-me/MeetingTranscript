@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>me.vattitude.scribe.mac</string>
+	<key>CFBundleName</key>
+	<string>Meeting Transcript</string>
+	<key>CFBundleDisplayName</key>
+	<string>Meeting Transcript</string>
+	<key>CFBundleExecutable</key>
+	<string>MeetingTranscript</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.productivity</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Meeting Transcript records your side of the meeting. The audio stays on this Mac and is transcribed here.</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Transcribed on this Mac. Nothing is uploaded.</string>
+</dict>
+</plist>

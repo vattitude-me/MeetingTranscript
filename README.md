@@ -207,9 +207,11 @@ upgrade and you will have to uninstall first.
   spoke, and the voices are separated again without re-transcribing.
 - **Transcription quality is unmeasured** against real meeting audio on a Pixel 9. The
   numbers above are the model author's, not ours.
-- **Android only.** The iOS app in [docs/PLAN.md](docs/PLAN.md) was never built, and is no
+- **No iOS app.** The iOS app in [docs/PLAN.md](docs/PLAN.md) was never built, and is no
   longer the plan — iOS cannot capture another app's audio. The second platform is macOS:
-  [docs/MACOS.md](docs/MACOS.md), with a working capture spike in [mac/](mac).
+  [mac/](mac) is a menu bar app that records the call and your microphone and transcribes
+  them live. You build it from source for free, without an Apple Developer account. It
+  does not yet read or write Android backups. See [docs/MACOS.md](docs/MACOS.md).
 - **No process isolation.** The plan calls for running ASR in a `:asr` process so an OOM
   cannot take the recorder down; today it shares the main process.
 
