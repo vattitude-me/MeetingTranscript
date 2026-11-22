@@ -36,6 +36,19 @@ final class AppModel: ObservableObject {
     @AppStorage("filterEcho") var filterEcho = true { didSet { Jobs.shared.filterEcho = filterEcho } }
     @AppStorage("voiceProcessing") var voiceProcessing = false
     @AppStorage("captureSystem") var captureSystem = true
+    @AppStorage("offerToRecordCalls") var offerToRecordCalls = true { didSet { updateDetector() } }
+    @AppStorage("calendarTitles") var calendarTitles = false
+    /// Where finished meetings are saved as Markdown notes. Empty means off.
+    @AppStorage("notesFolder") var notesFolder = ""
+
+    // Calls
+    /// A call app holding the microphone while nothing is being recorded:
+    /// what the menu panel offers to record.
+    @Published private(set) var callInProgress: String?
+    /// The call app the current recording follows, so its end can offer Stop.
+    private var recordingFollows: String?
+    private let detector = CallDetector()
+    private var exports: [Int64: DispatchWorkItem] = [:]
 
     /// A meeting longer than this is almost certainly a forgotten Stop.
     static let maxDurationMs: Int64 = 6 * 3600 * 1000
@@ -49,6 +62,11 @@ final class AppModel: ObservableObject {
         Jobs.shared.recover()
         refreshRecent()
         if modelsReady { Engine.shared.preload() }
+        Notifier.shared.onRecord = { [weak self] in self?.start() }
+        Notifier.shared.onStop = { [weak self] in self?.stop() }
+        detector.onStarted = { [weak self] app in self?.callStarted(app) }
+        detector.onEnded = { [weak self] app in self?.callEnded(app) }
+        updateDetector()
         NotificationCenter.default.addObserver(forName: .storeChanged, object: nil, queue: .main) { [weak self] note in
             let id = note.object as? Int64
             Task { @MainActor in self?.storeChanged(id) }
@@ -95,6 +113,10 @@ final class AppModel: ObservableObject {
                 try await rec.start()
                 warnings = rec.warnings
                 recording = rec
+                recordingFollows = callInProgress ?? detector.active.sorted().first
+                callInProgress = nil
+                Notifier.shared.clearOffer()
+                nameFromCalendar(rec.meetingId)
                 liveLines = []
                 elapsedMs = 0
                 selection = rec.meetingId
@@ -110,6 +132,8 @@ final class AppModel: ObservableObject {
     func stop() {
         guard let rec = recording else { return }
         recording = nil
+        recordingFollows = nil
+        Notifier.shared.clearEnded()
         ticker?.invalidate()
         levels = [:]
         finishing.insert(rec.meetingId)
@@ -148,6 +172,7 @@ final class AppModel: ObservableObject {
 
     private func storeChanged(_ id: Int64?) {
         refreshRecent()
+        if let id { scheduleNote(id) }
         if let rec = recording, id == nil || id == rec.meetingId {
             liveLines = Array(Store.shared.lines(rec.meetingId).suffix(4))
         }
@@ -155,6 +180,139 @@ final class AppModel: ObservableObject {
 
     func refreshRecent() {
         recent = Array(Store.shared.meetings().prefix(5))
+    }
+
+    // MARK: calls
+
+    private func updateDetector() {
+        if offerToRecordCalls {
+            Notifier.shared.setUp()
+            detector.start()
+        } else {
+            detector.stop()
+            callInProgress = nil
+            Notifier.shared.clearOffer()
+        }
+    }
+
+    private func callStarted(_ app: String) {
+        if isRecording {
+            // Recording began before the call app opened the mic, or a second
+            // app joined: follow the first, so its end is the one that counts.
+            if recordingFollows == nil { recordingFollows = app }
+            // It came back, so the call was not over: withdraw "stop?".
+            if recordingFollows == app { Notifier.shared.clearEnded() }
+            return
+        }
+        guard offerToRecordCalls, !starting else { return }
+        callInProgress = app
+        Notifier.shared.offerRecording(app: app)
+    }
+
+    private func callEnded(_ app: String) {
+        if callInProgress == app {
+            callInProgress = detector.active.sorted().first
+            if callInProgress == nil { Notifier.shared.clearOffer() }
+        }
+        // Asks rather than stops. A call app can let go of the microphone
+        // while the call goes on (switching to a phone's audio, a browser
+        // reloading the tab), and stopping then would lose the rest of it.
+        if isRecording && recordingFollows == app {
+            Notifier.shared.offerStop(app: app)
+        }
+    }
+
+    func dismissCallOffer() {
+        callInProgress = nil
+        Notifier.shared.clearOffer()
+    }
+
+    // MARK: calendar
+
+    /// Names a new recording after the calendar event it belongs to, unless
+    /// it already has a name.
+    private func nameFromCalendar(_ id: Int64) {
+        guard calendarTitles, let event = CalendarTitles.shared.event() else { return }
+        guard Store.shared.meeting(id)?.title.isEmpty ?? false else { return }
+        Store.shared.rename(id, to: event.title)
+    }
+
+    /// Turning the setting on asks for access; a "no" turns it back off.
+    func setCalendarTitles(_ on: Bool) {
+        guard on else { calendarTitles = false; return }
+        Task {
+            let granted = await CalendarTitles.shared.requestAccess()
+            calendarTitles = granted
+            if !granted {
+                errorMessage = "Calendar access is off for Meeting Transcript. Turn it on in System Settings → Privacy & Security → Calendars."
+            }
+        }
+    }
+
+    // MARK: notes folder
+
+    var notesFolderURL: URL? {
+        notesFolder.isEmpty ? nil : URL(fileURLWithPath: notesFolder, isDirectory: true)
+    }
+
+    /// Where each meeting's note was last written, so a rename replaces it.
+    private var notePaths: [String: String] {
+        get { UserDefaults.standard.dictionary(forKey: "notePaths") as? [String: String] ?? [:] }
+        set { UserDefaults.standard.set(newValue, forKey: "notePaths") }
+    }
+
+    /// Store changes come in bursts (a rename, then a refresh; a transcript's
+    /// last lines one by one), so the write waits for them to settle.
+    private func scheduleNote(_ id: Int64) {
+        guard notesFolderURL != nil else { return }
+        exports[id]?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in self?.writeNote(id) }
+        }
+        exports[id] = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+    }
+
+    /// Writes the note for a finished meeting. Anything still recording or
+    /// transcribing waits for its next change, which finishing always is.
+    @discardableResult
+    func writeNote(_ id: Int64) -> Bool {
+        exports[id] = nil
+        guard let folder = notesFolderURL, let m = Store.shared.meeting(id), m.state == .done else { return false }
+        let lines = Store.shared.lines(id)
+        guard !lines.isEmpty else { return false }
+        var paths = notePaths
+        let previous = paths[String(id)].map { URL(fileURLWithPath: $0) }
+        do {
+            let url = try NotesExport.write(m, lines, Store.shared.names(id), to: folder, previous: previous)
+            paths[String(id)] = url.path
+            notePaths = paths
+            return true
+        } catch {
+            errorMessage = "Could not save the note to \(folder.path): \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    func chooseNotesFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Save Notes Here"
+        panel.message = "Each finished meeting is saved here as a Markdown file."
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        notesFolder = url.path
+        // A different folder starts a different set of notes.
+        notePaths = [:]
+    }
+
+    /// Saves every finished meeting already in the library. Returns how many.
+    @discardableResult
+    func writeAllNotes() -> Int {
+        Store.shared.meetings().filter { $0.state == .done }.reduce(0) { $0 + (writeNote($1.id) ? 1 : 0) }
     }
 
     // MARK: models

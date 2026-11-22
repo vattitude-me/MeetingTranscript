@@ -1,7 +1,9 @@
 # Strategy: stop competing with the recorder app
 
-**Status:** proposal, 2026-10-02, revised 2026-11-22 (see section 0). Nothing in here
-is built yet. Read it next to [PLAN.md](PLAN.md) (why things are the way they are) and
+**Status:** proposal, 2026-10-02, revised 2026-11-22 (see section 0). Built so far,
+on the Mac, written but **not yet compiled or tried on a Mac**: offering to record when
+a call starts, naming meetings from the calendar, and saving notes to a folder (steps
+1 and 5 in section 6). Everything else is still a proposal. Read it next to [PLAN.md](PLAN.md) (why things are the way they are) and
 [MACOS.md](MACOS.md).
 
 ## 0. What changed since this app was built (November 2026 revision)

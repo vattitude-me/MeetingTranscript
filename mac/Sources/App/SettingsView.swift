@@ -14,6 +14,28 @@ struct SettingsView: View {
                 Toggle("Apple echo cancellation on the microphone", isOn: $model.voiceProcessing)
                 caption("Stops the microphone from hearing your speakers. It can make other apps quieter while recording. Not needed with headphones.")
             }
+            Section("Meetings") {
+                Toggle("Offer to record when a call starts", isOn: $model.offerToRecordCalls)
+                caption("When Zoom, Teams, Meet in a browser, FaceTime or another call app starts using the microphone, a notification asks whether to record. Nothing is recorded until you click. When the call app lets go of the microphone, it asks whether to stop.")
+                Toggle("Name meetings from my calendar", isOn: Binding(get: { model.calendarTitles }, set: { model.setCalendarTitles($0) }))
+                caption("A recording takes the title of the calendar event happening when it starts. The calendar is only read, only on this Mac, and only at that moment.")
+                LabeledContent("Save notes to") {
+                    HStack {
+                        if let url = model.notesFolderURL {
+                            Text(url.lastPathComponent).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            Button("Show") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                            Button("Turn Off") { model.notesFolder = "" }
+                        }
+                        Button(model.notesFolderURL == nil ? "Choose Folder…" : "Change…") { model.chooseNotesFolder() }
+                    }
+                }
+                if model.notesFolderURL != nil {
+                    LabeledContent("") {
+                        Button("Save All Existing Meetings There") { model.writeAllNotes() }
+                    }
+                }
+                caption("Each finished meeting is saved as a Markdown file, for example in an Obsidian vault or iCloud Drive, and kept up to date when you rename it or name a speaker. Deleting a meeting here doesn't delete its note.")
+            }
             Section("General") {
                 Toggle("Open at login", isOn: Binding(get: { model.opensAtLogin }, set: { model.opensAtLogin = $0 }))
                 LabeledContent("Permissions") {

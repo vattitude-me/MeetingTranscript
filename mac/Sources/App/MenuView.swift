@@ -12,6 +12,7 @@ struct MenuView: View {
             header
             if !model.modelsReady { ModelCard() }
             if model.needsSetup && !model.isRecording { PermissionsCard() }
+            if let app = model.callInProgress, !model.isRecording { callOffer(app) }
             recordSection
             if let e = model.errorMessage { Notice(text: e, systemImage: "exclamationmark.triangle.fill", tint: .red) }
             ForEach(model.warnings, id: \.self) { Notice(text: $0, systemImage: "exclamationmark.triangle", tint: .orange) }
@@ -78,6 +79,24 @@ struct MenuView: View {
                 }
             }
         }
+    }
+
+    /// The same offer the notification makes, for when notifications are
+    /// off or were missed.
+    private func callOffer(_ app: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "phone.fill").foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(app) is using the microphone").font(.callout.weight(.semibold))
+                Text("Record this call?").font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Record") { model.start() }.buttonStyle(.borderedProminent).tint(Theme.record)
+            Button { model.dismissCallOffer() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.borderless).help("Not this call")
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.accent.opacity(0.1)))
     }
 
     private var liveSection: some View {

@@ -30,6 +30,10 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Meeting Transcript records your side of the meeting. The audio stays on this Mac and is transcribed here.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Meeting Transcript names a recording after the calendar event happening when it starts. Your calendar is only read, and only on this Mac.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Meeting Transcript names a recording after the calendar event happening when it starts. Your calendar is only read, and only on this Mac.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Transcribed on this Mac. Nothing is uploaded.</string>
 </dict>

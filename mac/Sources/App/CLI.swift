@@ -5,7 +5,7 @@ import MeetingCore
 /// The same binary, driven from Terminal. Useful for checking a build without
 /// clicking through the app, and for recording without any window at all.
 enum CLI {
-    static let commands = ["selftest", "models", "transcribe", "record", "list", "export", "help", "--help", "-h"]
+    static let commands = ["selftest", "models", "transcribe", "record", "list", "export", "calls", "help", "--help", "-h"]
 
     /// Runs a subcommand if one was given; nil means start the app.
     static func runIfCommand() -> Int32? {
@@ -23,6 +23,7 @@ enum CLI {
                 case "record": try await record(rest)
                 case "list": list()
                 case "export": try export(rest)
+                case "calls": calls(rest)
                 default: help()
                 }
             } catch {
@@ -49,6 +50,8 @@ enum CLI {
                                   into the library, as if Record had been pressed in the app
           list                    Meetings in the library
           export <id> [fmt]       Print a meeting as txt, md, json, srt, vtt or prompt
+          calls [seconds]         Show which apps are using the microphone, every 2 seconds, and
+                                  which of them count as calls (default: 60 seconds)
 
         Library: \(Paths.root.path)
         """)
@@ -260,5 +263,30 @@ enum CLI {
         p.waitUntilExit()
         guard p.terminationStatus == 0 else { throw SherpaError(message: "`say` failed") }
         return try Audio.readAnyFile(url)
+    }
+
+    // MARK: calls
+
+    /// What the call detector sees, for checking it against a real call: start
+    /// one in Zoom, Teams or a browser and watch the line change.
+    static func calls(_ args: [String]) {
+        let seconds = args.first.flatMap(Int.init) ?? 60
+        var tracker = CallTracker()
+        print("Watching the microphone for \(seconds) s. Start or end a call to see it here.")
+        for tick in 0..<max(1, seconds / 2) {
+            let users = MicUsers.current()
+            let calls = Set(users.compactMap(CallApps.name(forBundleID:)))
+            let shown = users.isEmpty ? "nobody" : users.map { id in
+                CallApps.name(forBundleID: id).map { "\(id) (\($0))" } ?? id
+            }.joined(separator: ", ")
+            print("\(Exporters.timestamp(Int64(tick) * 2000))  mic: \(shown)")
+            for e in tracker.update(calls) {
+                switch e {
+                case .started(let n): print("  → call started: \(n)")
+                case .ended(let n): print("  → call ended: \(n)")
+                }
+            }
+            Thread.sleep(forTimeInterval: 2)
+        }
     }
 }

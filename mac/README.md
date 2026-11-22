@@ -12,6 +12,23 @@ from any line, name the speakers, and export a meeting as plain text, Markdown, 
 or subtitles (SRT or WebVTT). You can also copy it with instructions for an AI chatbot,
 ready to paste.
 
+### It notices the call, names it, and files the notes
+
+- **Offers to record when a call starts.** When Zoom, Teams, Webex, Slack, FaceTime or
+  a browser (for Google Meet) starts using the microphone, a notification asks
+  whether to record. Click it and recording starts. Nothing is recorded until you
+  click. When the call app lets go of the microphone, the app asks whether to stop.
+  It never stops on its own, because a call app can let go of the microphone while the
+  call goes on. Turn this off in Settings → Meetings.
+- **Names meetings from your calendar** (optional, off until you turn it on). A
+  recording takes the title of the calendar event happening when it starts. The app
+  only reads the calendar, only on this Mac, and only at that moment.
+- **Saves notes to a folder** (optional). Pick a folder in Settings, for example an
+  Obsidian vault or a folder in iCloud Drive, and each finished meeting is saved there
+  as a Markdown file. The file is updated when you rename the meeting or name a speaker.
+  The app only ever replaces or removes files it wrote itself (it checks the
+  `meeting_id` at the top of the file).
+
 ## Build it for free (no Apple Developer account)
 
 You need a Mac with Apple silicon, macOS 14 or newer, and Apple's free Command Line
@@ -82,6 +99,7 @@ M="$HOME/Applications/Meeting Transcript.app/Contents/MacOS/MeetingTranscript"
 "$M" record 60           # records the call and your mic for 60 seconds
 "$M" list                # lists your meetings
 "$M" export 3 md         # exports meeting 3: txt, md, json, srt, vtt or prompt
+"$M" calls 60            # for 60 seconds, shows which apps use the mic and which count as calls
 ```
 
 For testing, you can change these settings with environment variables:
