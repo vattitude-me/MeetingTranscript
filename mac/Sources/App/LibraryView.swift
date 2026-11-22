@@ -86,7 +86,7 @@ struct MeetingRow: View {
         VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline) {
                 if meeting.title.isEmpty {
-                    Text("Untitled meeting").italic().foregroundStyle(.secondary)
+                    Text(Exporters.title(meeting)).italic().foregroundStyle(.secondary)
                 } else {
                     Text(meeting.title)
                 }

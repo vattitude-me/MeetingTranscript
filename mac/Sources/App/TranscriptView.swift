@@ -114,7 +114,7 @@ struct TranscriptView: View {
 
     private func header(_ m: Meeting) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField("Untitled meeting", text: $title, onEditingChanged: { editing in
+            TextField(Exporters.title(m), text: $title, onEditingChanged: { editing in
                 titleFocusedEditing = editing
                 if !editing { commitTitle() }
             })
